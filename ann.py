@@ -38,7 +38,10 @@ def compute_outputs(hidden_weights, hidden_biases, output_weights, output_biases
         for j in range(len(h_z[i])):
             h_z[i][j] = 1/(1+np.exp(-h_z[i][j]))
 
+    
     output_outputs = np.dot(h_z,output_weights)
+
+
     for i in range(len(output_outputs)):
         output_outputs[i]+=output_biases
         o1 = np.exp(output_outputs[i][0])
@@ -46,26 +49,18 @@ def compute_outputs(hidden_weights, hidden_biases, output_weights, output_biases
         output_outputs[i][0] = o1/(o1+o2)
         output_outputs[i][1] = o2/(o1+o2)
 
+
     return h_z,output_outputs
 
 def compute_grads(hidden_weights, hidden_outputs, output_weights,output_outputs,inputs,outputs):
-    print "Following the derivative of log-like wrt bias of first hidden unit."
     diff = outputs - output_outputs    #the main difference term
-    print "y1-f1 terms of different samples"
-    print diff
 
     dB = np.dot(np.ones((1,np.shape(diff)[0])),diff).reshape((output_weights.shape[1],))
     dW = np.dot(hidden_outputs.T,diff) 
     bp = np.dot(diff,output_weights.T)
-    print "back-propogation signal which gives (y1-f1)W11 + (y2-f2)W12 terms"
-    print bp
     prod = hidden_outputs*(1-hidden_outputs)
-    print "now the h(1-h) term:"
-    print prod
     back = bp*prod
     db = np.dot(np.ones((1,np.shape(prod)[0])),back).reshape((hidden_weights.shape[1],))
-    print "Finally the terms of the bias gradient"
-    print db
     dw = np.dot(inputs.T,back)
     return dB,dW,db,dw
 
@@ -103,7 +98,7 @@ if __name__ == "__main__":
     outputs = np.loadtxt('outputs',dtype=np.float128)
     hidden_weights = np.random.normal(0,10,(num_inputs,num_hidden)).astype(np.float128)
     hidden_biases += 0.5
-    output_weights += 1.0
+    output_weights += np.random.normal(0,5,(num_hidden,2)).astype(np.float128)
     output_biases += 0.5
     eps = 0.00001
     hidden_outputs,output_outputs = compute_outputs(hidden_weights,hidden_biases, output_weights, output_biases, inputs)
