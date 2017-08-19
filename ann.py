@@ -1,9 +1,10 @@
 import numpy as np
-
+import sys
 #basic constants for run
 #this is assuming one hidden layer i.e. a sigmoid layer and a softmax-output layer
 num_hidden = 5  #number of units in hidden layer
-num_inputs = 2 #number of inputs
+num_inputs = int(sys.argv[1]) #number of inputs
+N = int(sys.argv[2])
 #.....
 
 #layer variables:
@@ -94,8 +95,8 @@ def leap_frog(hw, hb, pw,pb, dw,db, ow,ob,pW,pB,dW,dB,eps,inputs,outputs):
 
 if __name__ == "__main__":
     #:    global hidden_weights, hidden_biases, output_weights, output_biases
-    inputs = np.loadtxt('inputs',dtype=np.float128)
-    outputs = np.loadtxt('outputs',dtype=np.float128)
+    inputs = np.loadtxt('maf_%d_%d'%(num_inputs,N),dtype=np.float128)
+    outputs = np.loadtxt('hc_%d'%(N),dtype=np.float128)
     hidden_weights = np.random.normal(0,10,(num_inputs,num_hidden)).astype(np.float128)
     hidden_biases += 0.5
     output_weights += np.random.normal(0,5,(num_hidden,2)).astype(np.float128)
