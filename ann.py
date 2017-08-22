@@ -61,7 +61,7 @@ def compute_grads(hidden_weights, hidden_outputs, output_weights,output_outputs,
     bp = np.dot(diff,output_weights.T)
     prod = hidden_outputs*(1-hidden_outputs)
     back = bp*prod
-    db = np.dot(np.ones((1,np.shape(prod)[0])),back).reshape((hidden_weights.shape[1],))
+    db = np.dot(np.ones((1,np.shape(back)[0])),back).reshape((hidden_weights.shape[1],))
     dw = np.dot(inputs.T,back)
     return dB,dW,db,dw
 
@@ -97,9 +97,11 @@ if __name__ == "__main__":
     #:    global hidden_weights, hidden_biases, output_weights, output_biases
     inputs = np.loadtxt('maf_%d_%d'%(num_inputs,N),dtype=np.float128)
     outputs = np.loadtxt('hc_%d'%(N),dtype=np.float128)
-    hidden_weights = np.random.normal(0,10,(num_inputs,num_hidden)).astype(np.float128)
+   # hidden_weights = np.random.normal(0,10,(num_inputs,num_hidden)).astype(np.float128)
+    hidden_weights = np.loadtxt('init_hw')
     hidden_biases += 0.5
-    output_weights += np.random.normal(0,5,(num_hidden,2)).astype(np.float128)
+    #output_weights += np.random.normal(0,5,(num_hidden,2)).astype(np.float128)
+    output_weights += np.loadtxt('init_ow')
     output_biases += 0.5
     eps = 0.00001
     hidden_outputs,output_outputs = compute_outputs(hidden_weights,hidden_biases, output_weights, output_biases, inputs)
