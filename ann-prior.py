@@ -31,7 +31,7 @@ opw_shape = 0.1
 pqw_scale = 0.1
 output_sW = np.array([100.],dtype=np.float128)
 output_sB = invgamma.rvs(1.0,scale=1.0,size=(1,1)).astype(np.float128)#end output layer prior contribution
-
+#output layer prior end
 
 hidden_weights_grad = np.zeros((num_inputs,num_hidden),np.float128)
 hidden_biases_grad = np.zeros((num_hidden),np.float128)
@@ -88,17 +88,20 @@ def compute_grads(hidden_weights, hidden_outputs, output_weights,output_outputs,
 
 def prior_contrib(hidden_weights, hidden_biases, hsW, hsB, output_weights, output_biases, osW, osB):
     val = 0 
-    
     for i,j in zip(hidden_weights,hsW[0]):
-        print for 
         val -= (i**2).sum()/(2*j)
-
-def Hamiltonian(outputs, output_outputs,pw,pb,pB,pW):
+    for i in output_weights:
+        val -= (i**2).sum()/(osW[0])
+    val -= (hidden_biases**2).sum()/(2*hsB[0][0])
+    val -= (output_biases**2).sum()/(2*osB[0][0])
+    return val
+def Hamiltonian(outputs, output_outputs,pw,pb,pB,pW,hidden_weights,hidden_biases,hidden_sW,hidden_sB,output_weights,output_biases,output_sW,output_sB):
     log = outputs*np.log(output_outputs)
     log = log.sum()
     k = (pw**2).sum() + (pb**2).sum() + (pW**2).sum() + (pB**2).sum()
     
-    return log,k,log-k
+    p = prior_contrib(hidden_weights,hidden_biases,hidden_sW,hidden_sB,output_weights, output_biases, output_sW, output_sB)
+    return log,k,log+k+p
 
 def leap_frog(hw, hb, pw,pb, dw,db, ow,ob,pW,pB,dW,dB,eps,inputs,outputs):
     pw += (eps/2.0)*dw
@@ -138,18 +141,17 @@ if __name__ == "__main__":
     dB,dW,db,dW = compute_grads(hidden_weights,hidden_outputs, output_weights, output_outputs, inputs,outputs)
     steps = 2
 
-    prior_contrib(hidden_weights,hidden_biases,hidden_sW,hidden_sB,output_weights, output_biases, output_sW, output_sB)
     sys.exit()
     for i in range(2):
         print "Step:",(i+1)
 
         hidden_outputs,output_outputs = compute_outputs(hidden_weights,hidden_biases, output_weights, output_biases, inputs)
         output_biases_grad,output_weights_grad,hidden_biases_grad,hidden_weights_grad = compute_grads(hidden_weights,hidden_outputs, output_weights, output_outputs, inputs,outputs)
-        l,k,H = Hamiltonian(outputs,output_outputs,pw,pb,pW,pB)
+        l,k,H = Hamiltonian(outputs,output_outputs,pw,pb,pW,pB,hidden_weights,hidden_biases,hidden_sW,hidden_sB,output_weights, output_biases, output_sW, output_sB)
         hidden_weights,hidden_biases,pw,pb,output_weights,output_biases,pW,pB = leap_frog(hidden_weights, hidden_biases,pw,pb,hidden_weights_grad,hidden_biases_grad,output_weights,output_biases,pW,pB,output_weights_grad,output_biases_grad,eps,inputs,outputs)
 
         output_biases_grad,output_weights_grad,hidden_biases_grad,hidden_weights_grad = compute_grads(hidden_weights,hidden_outputs, output_weights, output_outputs, inputs,outputs)
-        l_new,k_new,H_new = Hamiltonian(outputs,output_outputs,pw,pb,pW,pB)
+        l_new,k_new,H_new = Hamiltonian(outputs,output_outputs,pw,pb,pW,pB,hidden_weights,hidden_biases,hidden_sW,hidden_sB,output_weights, output_biases, output_sW, output_sB)
         
         print 'current U:',l
         print 'current K:',k
