@@ -79,10 +79,10 @@ def leap_frog(hw, hb, pw,pb, dw,db, ow,ob,pW,pB,dW,dB,eps,inputs,outputs):
     pW += (eps/2.0)*dW
     pB += (eps/2.0)*dB
 
-    hw += (eps/2.0)*pw
-    hb += (eps/2.0)*pb
-    ow += (eps/2.0)*pW
-    ob += (eps/2.0)*pB
+    hw += (eps)*pw
+    hb += (eps)*pb
+    ow += (eps)*pW
+    ob += (eps)*pB
     
     hz,oo = compute_outputs(hw,hb,ow,ob,inputs)
     dB,dW,db,dw = compute_grads(hw,hz,ow,oo,inputs,outputs)
