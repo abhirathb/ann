@@ -95,6 +95,18 @@ def prior_contrib(hidden_weights, hidden_biases, hsW, hsB, output_weights, outpu
     val -= (hidden_biases**2).sum()/(2*hsB[0][0])
     val -= (output_biases**2).sum()/(2*osB[0][0])
     return val
+
+
+def prior_contrib_grad(hidden_weights, hidden_biases, hsW, hsB, output_weights, output_biases, osW, osB):
+    val = 0 
+    for i,j in zip(hidden_weights,hsW[0]):
+        val -= (i).sum()/(j)
+    for i in output_weights:
+        val -= (i).sum()/(osW[0])
+    val -= (hidden_biases).sum()/(hsB[0][0])
+    val -= (output_biases).sum()/(osB[0][0])
+    return val
+
 def Hamiltonian(outputs, output_outputs,pw,pb,pB,pW,hidden_weights,hidden_biases,hidden_sW,hidden_sB,output_weights,output_biases,output_sW,output_sB):
     log = outputs*np.log(output_outputs)
     log = log.sum()
