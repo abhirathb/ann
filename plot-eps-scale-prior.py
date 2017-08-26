@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot  as plt
 
-prefix = 'result_22-8/eps-scale/'
+prefix = 'result_22-8/prior-cont/eps-scale/'
 suffix = '_1000_100'
 
 x = np.array([0,1,2,3,4])
