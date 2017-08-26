@@ -101,18 +101,9 @@ def prior_contrib(hidden_weights, hidden_biases, hsW, hsB, output_weights, outpu
         val -= (i**2).sum()/(osW[0])
     val -= (hidden_biases**2).sum()/(2*hsB[0])
     val -= (output_biases**2).sum()/(2*osB[0])
+    print "prior",val
     return val
 
-
-def prior_contrib_grad(hidden_weights, hidden_biases, hsW, hsB, output_weights, output_biases, osW, osB):
-    val = 0 
-    for i,j in zip(hidden_weights,hsW[0]):
-        val -= (i).sum()/(j)
-    for i in output_weights:
-        val -= (i).sum()/(osW[0])
-    val -= (hidden_biases).sum()/(hsB[0][0])
-    val -= (output_biases).sum()/(osB[0][0])
-    return val
 
 def Hamiltonian(outputs, output_outputs,pw,pb,pB,pW,hidden_weights,hidden_biases,hidden_sW,hidden_sB,output_weights,output_biases,output_sW,output_sB):
     log = outputs*np.log(output_outputs)
@@ -120,7 +111,7 @@ def Hamiltonian(outputs, output_outputs,pw,pb,pB,pW,hidden_weights,hidden_biases
     k = (pw**2).sum() + (pb**2).sum() + (pW**2).sum() + (pB**2).sum()
     
     p = prior_contrib(hidden_weights,hidden_biases,hidden_sW,hidden_sB,output_weights, output_biases, output_sW, output_sB)
-    return log,k,log+p-k
+    return log,k,log+p,(log+p-k)
 
 
 
@@ -203,23 +194,30 @@ if __name__ == "__main__":
 
         hidden_outputs,output_outputs = compute_outputs(hidden_weights,hidden_biases, output_weights, output_biases, inputs)
         output_biases_grad,output_weights_grad,hidden_biases_grad,hidden_weights_grad = compute_grads(hidden_weights,hidden_outputs, hidden_biases,hidden_sW,hidden_sB, output_weights, output_outputs,output_biases,output_sW,output_sB, inputs,outputs)
-        l,k,H = Hamiltonian(outputs,output_outputs,pw,pb,pW,pB,hidden_weights,hidden_biases,hidden_sW,hidden_sB,output_weights, output_biases, output_sW, output_sB)
-         
+        l,k,U,H = Hamiltonian(outputs,output_outputs,pw,pb,pW,pB,hidden_weights,hidden_biases,hidden_sW,hidden_sB,output_weights, output_biases, output_sW, output_sB)
+        if i==0:
+            H = H[0]
         hidden_sW, hidden_sB, hpw_mean, output_sW, output_sB = gibbs_update(hidden_weights, hidden_biases, hidden_sW, hidden_sB, hpw_mean, hpw_shape, hpw_scale, output_weights, output_biases, output_sW, output_sB, opw_shape, opw_scale)
         hidden_weights,hidden_biases,pw,pb,output_weights,output_biases,pW,pB = leap_frog(hidden_weights, hidden_biases,hidden_sW,hidden_sB,pw,pb,hidden_weights_grad,hidden_biases_grad,output_weights,output_biases,output_sW,output_sB,pW,pB,output_weights_grad,output_biases_grad,eps,inputs,outputs)
 
         output_biases_grad,output_weights_grad,hidden_biases_grad,hidden_weights_grad = compute_grads(hidden_weights,hidden_outputs,hidden_biases,hidden_sW,hidden_sB, output_weights, output_outputs,output_biases,output_sW,output_sB, inputs,outputs)
-        l_new,k_new,H_new = Hamiltonian(outputs,output_outputs,pw,pb,pW,pB,hidden_weights,hidden_biases,hidden_sW,hidden_sB,output_weights, output_biases, output_sW, output_sB)
+        l_new,k_new,U_new,H_new = Hamiltonian(outputs,output_outputs,pw,pb,pW,pB,hidden_weights,hidden_biases,hidden_sW,hidden_sB,output_weights, output_biases, output_sW, output_sB)
         
-        print 'current U:',l
+        print 'current U:',U
+        print 'current L:',l
         print 'current K:',k
         print 'current H:',H
-        print 'proposed U:',l_new
+        print 'proposed U:',U_new
+        print 'proposed L:',L_new
         print 'proposed K:',k_new
         print 'proposed H:',H_new
         print 'diff-h:',H_new-H
         print 'diff-k:',k_new-k
+        print 'diff-u:',U_new-U
+        print 'diff-l:',l_new-l
+        print 'ratio-u:',(U_new-U)/U
+        print 'ratio-l:',(l_new-l)/l
         print 'ratio-h:',(H_new-H)/H
         print 'ratio-k:',(k_new-k)/k
 
-
+print "MEAN:",hpw_mean

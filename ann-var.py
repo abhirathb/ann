@@ -130,6 +130,8 @@ if __name__ == "__main__":
         print 'proposed H:',H_new
         print 'diff-h:',H_new-H
         print 'diff-k:',k_new-k
+        print 'diff-u:',l_new-l
+        print 'ratio-u:',(l_new-l)/l
         print 'ratio-h:',(H_new-H)/H
         print 'ratio-k:',(k_new-k)/k
 
