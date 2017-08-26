@@ -21,15 +21,15 @@ init = 100.0
 # hidden layer prior settings; shape, scale, sW, sB, mean
 hpw_shape = 5.0 #hidden layer prior weights shape
 hpw_scale = 2.0 #hidden layer prior weights scale
-hidden_sW = (np.tile(init,reps=hidden_weights.shape[0]).reshape(1,hidden_weights.shape[0])).astype(np.float128)
-hidden_sB = invgamma.rvs(1.0,scale=1.0, size = (1,1)).astype(np.float128)
-hpw_mean = (np.tile(hpw_scale/(hpw_shape-1),reps=hidden_weights.shape[0]).reshape(1,hidden_weights.shape[0])).astype(np.float128)
+hidden_sW = (np.tile(init,reps=hidden_weights.shape[0]).reshape(1,hidden_weights.shape[0])).astype(np.float128) # each input unit has one sigma. so you repeat the same initial sigma D times to get a vector
+hidden_sB = invgamma.rvs(1.0,scale=1.0, size = (1,1)).astype(np.float128) #the biases have just one common prior
+hpw_mean = (np.tile(hpw_scale/(hpw_shape-1),reps=hidden_weights.shape[0]).reshape(1,hidden_weights.shape[0])).astype(np.float128) #maintain means of all the variances of prior of each input weight 
 #end of hidden layer prior
 
 #output layer prior: 
 opw_shape = 0.1
-pqw_scale = 0.1
-output_sW = np.array([100.],dtype=np.float128)
+opw_scale = 0.1
+output_sW = np.array([100.],dtype=np.float128) #outputs have exactly one prior for all weights/biases
 output_sB = invgamma.rvs(1.0,scale=1.0,size=(1,1)).astype(np.float128)#end output layer prior contribution
 #output layer prior end
 
@@ -73,16 +73,22 @@ def compute_outputs(hidden_weights, hidden_biases, output_weights, output_biases
 
     return h_z,output_outputs
 
-def compute_grads(hidden_weights, hidden_outputs, output_weights,output_outputs,inputs,outputs):
+def compute_grads(hidden_weights, hidden_outputs,hidden_biases,hsW,hsB, output_weights,output_outputs,output_biases,osW,osB,inputs,outputs):
     diff = outputs - output_outputs    #the main difference term
 
     dB = np.dot(np.ones((1,np.shape(diff)[0])),diff).reshape((output_weights.shape[1],))
+    dB -= output_biases/osB[0]
     dW = np.dot(hidden_outputs.T,diff) 
+    dW -= output_weights/osW[0]
     bp = np.dot(diff,output_weights.T)
     prod = hidden_outputs*(1-hidden_outputs)
     back = bp*prod
     db = np.dot(np.ones((1,np.shape(back)[0])),back).reshape((hidden_weights.shape[1],))
+    db -= hidden_biases/hsB[0]
     dw = np.dot(inputs.T,back)
+    for i in range(len(hidden_weights)):
+        dw[i] -= (hidden_weights[i])/(hsW[0][i])
+
     return dB,dW,db,dw
 
 
@@ -90,10 +96,11 @@ def prior_contrib(hidden_weights, hidden_biases, hsW, hsB, output_weights, outpu
     val = 0 
     for i,j in zip(hidden_weights,hsW[0]):
         val -= (i**2).sum()/(2*j)
+#    print osW
     for i in output_weights:
         val -= (i**2).sum()/(osW[0])
-    val -= (hidden_biases**2).sum()/(2*hsB[0][0])
-    val -= (output_biases**2).sum()/(2*osB[0][0])
+    val -= (hidden_biases**2).sum()/(2*hsB[0])
+    val -= (output_biases**2).sum()/(2*osB[0])
     return val
 
 
@@ -113,9 +120,47 @@ def Hamiltonian(outputs, output_outputs,pw,pb,pB,pW,hidden_weights,hidden_biases
     k = (pw**2).sum() + (pb**2).sum() + (pW**2).sum() + (pB**2).sum()
     
     p = prior_contrib(hidden_weights,hidden_biases,hidden_sW,hidden_sB,output_weights, output_biases, output_sW, output_sB)
-    return log,k,log+k+p
+    return log,k,log+p-k
 
-def leap_frog(hw, hb, pw,pb, dw,db, ow,ob,pW,pB,dW,dB,eps,inputs,outputs):
+
+
+def gibbs_update(hidden_weights, hidden_biases, hsW, hsB,hpw_mean,hpw_shape,hpw_scale, output_weights, output_biases, osW, osB,opw_shape,opw_scale):
+    #update for ARD
+    new_hsW = np.zeros(hsW.shape)
+    new_mean = np.zeros(hpw_mean.shape)
+    n_w = np.float128(hidden_weights.shape[1])
+    hpw_shape_new = hpw_shape+ n_w/2.0
+    for i in range(len(hidden_weights)):
+        hpw_scale_new=hpw_scale + (hidden_weights[i]**2).sum()/2.0
+        new_val = invgamma.rvs(hpw_shape_new,scale=hpw_scale_new,size=1)
+        new_hsW[0,i]=np.float128(new_val)
+        new_mean[0,i] = np.float128(hpw_scale_new/(hpw_shape_new-1.0))
+    
+    hsW = new_hsW.astype(np.float128)
+    hpw_mean = new_mean.astype(np.float128)
+    n_b = np.float128(hidden_biases.shape[0])
+    hpb_shape_new = hpw_shape + n_b/2.0
+    hpb_scale_new = hpw_scale + (hidden_biases**2).sum()/2.0
+    new_val = invgamma.rvs(hpb_shape_new, scale=hpb_scale_new,size=1)
+    hsB = np.float128(new_val)
+    
+    #update for GLP
+    n_w = np.float128(output_weights.shape[0]*output_weights.shape[1])
+    shape_new = opw_shape + n_w/2.0
+    scale_new = opw_scale + (output_weights**2).sum()/2.0
+    new_val = invgamma.rvs(shape_new, scale=scale_new, size=1)
+    
+    osW = np.float128(new_val)
+
+    n_b = np.float128(output_biases.shape[0])
+    shape_new = opw_shape+ n_b/2.0
+    scale_new = opw_scale + (output_biases**2).sum()/2.0
+    new_val = invgamma.rvs(shape_new,scale=scale_new,size=1)
+    osB = np.float128(new_val)
+    
+    return hsW, hsB, hpw_mean, osW, osB 
+    
+def leap_frog(hw, hb,hsW,hsB, pw,pb, dw,db, ow,ob,osW,osB,pW,pB,dW,dB,eps,inputs,outputs):
     pw += (eps/2.0)*dw
     pb += (eps/2.0)*db
     pW += (eps/2.0)*dW
@@ -127,7 +172,7 @@ def leap_frog(hw, hb, pw,pb, dw,db, ow,ob,pW,pB,dW,dB,eps,inputs,outputs):
     ob += (eps)*pB
     
     hz,oo = compute_outputs(hw,hb,ow,ob,inputs)
-    dB,dW,db,dw = compute_grads(hw,hz,ow,oo,inputs,outputs)
+    dB,dW,db,dw = compute_grads(hw,hz,hb,hsW,hsB,ow,oo,ob,osW,osB,inputs,outputs)
 
     pw += (eps/2.0)*dw
     pb += (eps/2.0)*db
@@ -150,19 +195,20 @@ if __name__ == "__main__":
 
 #    eps = 0.00001
     hidden_outputs,output_outputs = compute_outputs(hidden_weights,hidden_biases, output_weights, output_biases, inputs)
-    dB,dW,db,dW = compute_grads(hidden_weights,hidden_outputs, output_weights, output_outputs, inputs,outputs)
+    dB,dW,db,dW = compute_grads(hidden_weights,hidden_outputs, hidden_biases,hidden_sW,hidden_sB, output_weights, output_outputs,output_biases,output_sW,output_sB, inputs,outputs)
     steps = 2
-
-    sys.exit()
-    for i in range(2):
+#    print "outputsW:",output_sW
+    for i in range(steps):
         print "Step:",(i+1)
 
         hidden_outputs,output_outputs = compute_outputs(hidden_weights,hidden_biases, output_weights, output_biases, inputs)
-        output_biases_grad,output_weights_grad,hidden_biases_grad,hidden_weights_grad = compute_grads(hidden_weights,hidden_outputs, output_weights, output_outputs, inputs,outputs)
+        output_biases_grad,output_weights_grad,hidden_biases_grad,hidden_weights_grad = compute_grads(hidden_weights,hidden_outputs, hidden_biases,hidden_sW,hidden_sB, output_weights, output_outputs,output_biases,output_sW,output_sB, inputs,outputs)
         l,k,H = Hamiltonian(outputs,output_outputs,pw,pb,pW,pB,hidden_weights,hidden_biases,hidden_sW,hidden_sB,output_weights, output_biases, output_sW, output_sB)
-        hidden_weights,hidden_biases,pw,pb,output_weights,output_biases,pW,pB = leap_frog(hidden_weights, hidden_biases,pw,pb,hidden_weights_grad,hidden_biases_grad,output_weights,output_biases,pW,pB,output_weights_grad,output_biases_grad,eps,inputs,outputs)
+         
+        hidden_sW, hidden_sB, hpw_mean, output_sW, output_sB = gibbs_update(hidden_weights, hidden_biases, hidden_sW, hidden_sB, hpw_mean, hpw_shape, hpw_scale, output_weights, output_biases, output_sW, output_sB, opw_shape, opw_scale)
+        hidden_weights,hidden_biases,pw,pb,output_weights,output_biases,pW,pB = leap_frog(hidden_weights, hidden_biases,hidden_sW,hidden_sB,pw,pb,hidden_weights_grad,hidden_biases_grad,output_weights,output_biases,output_sW,output_sB,pW,pB,output_weights_grad,output_biases_grad,eps,inputs,outputs)
 
-        output_biases_grad,output_weights_grad,hidden_biases_grad,hidden_weights_grad = compute_grads(hidden_weights,hidden_outputs, output_weights, output_outputs, inputs,outputs)
+        output_biases_grad,output_weights_grad,hidden_biases_grad,hidden_weights_grad = compute_grads(hidden_weights,hidden_outputs,hidden_biases,hidden_sW,hidden_sB, output_weights, output_outputs,output_biases,output_sW,output_sB, inputs,outputs)
         l_new,k_new,H_new = Hamiltonian(outputs,output_outputs,pw,pb,pW,pB,hidden_weights,hidden_biases,hidden_sW,hidden_sB,output_weights, output_biases, output_sW, output_sB)
         
         print 'current U:',l
