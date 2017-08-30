@@ -5,6 +5,7 @@ import sys
 num_hidden = 5  #number of units in hidden layer
 num_inputs = int(sys.argv[1]) #number of inputs
 N = int(sys.argv[2])
+eps = float(sys.argv[3])
 #.....
 
 #layer variables:
@@ -95,15 +96,15 @@ def leap_frog(hw, hb, pw,pb, dw,db, ow,ob,pW,pB,dW,dB,eps,inputs,outputs):
 
 if __name__ == "__main__":
     #:    global hidden_weights, hidden_biases, output_weights, output_biases
-    inputs = np.loadtxt('maf_%d_%d'%(num_inputs,N),dtype=np.float128)
-    outputs = np.loadtxt('hc_%d'%(N),dtype=np.float128)
-   # hidden_weights = np.random.normal(0,10,(num_inputs,num_hidden)).astype(np.float128)
-    hidden_weights = np.loadtxt('init_hw')
+    inputs = np.loadtxt('input_files/maf_%d_%d'%(num_inputs,N),dtype=np.float128)
+    outputs = np.loadtxt('input_files/hc_%d'%(N),dtype=np.float128)
+    hidden_weights = np.random.normal(0,10,(num_inputs,num_hidden)).astype(np.float128)
+#    hidden_weights = np.loadtxt('input_files/init_hw')
     hidden_biases += 0.5
-    #output_weights += np.random.normal(0,5,(num_hidden,2)).astype(np.float128)
-    output_weights += np.loadtxt('init_ow')
+    output_weights += np.random.normal(0,5,(num_hidden,2)).astype(np.float128)
+    #output_weights += np.loadtxt('input_files/init_ow')
     output_biases += 0.5
-    eps = 0.00001
+#    eps = 0.00001
     hidden_outputs,output_outputs = compute_outputs(hidden_weights,hidden_biases, output_weights, output_biases, inputs)
     dB,dW,db,dW = compute_grads(hidden_weights,hidden_outputs, output_weights, output_outputs, inputs,outputs)
     steps = 2
@@ -118,12 +119,15 @@ if __name__ == "__main__":
 
         l_new,k_new,H_new = Hamiltonian(outputs,output_outputs,pw,pb,pW,pB)
         
-        print 'current U',l
-        print 'current K',k
-        print 'current H',H
-        print 'proposed U',l_new
-        print 'proposed K',k_new
-        print 'proposed H',H_new
-        print 'diff:',H_new-H
+        print 'current U:',l
+        print 'current K:',k
+        print 'current H:',H
+        print 'proposed U:',l_new
+        print 'proposed K:',k_new
+        print 'proposed H:',H_new
+        print 'diff-h:',H_new-H
+        print 'diff-k:',k_new-k
+        print 'ratio-h:',(H-new-H)/H
+        print 'ratio-k:',(k_new-k)/k
 
 
