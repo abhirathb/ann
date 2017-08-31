@@ -1,62 +1,7 @@
 import numpy as np
 import sys
 from scipy.stats import invgamma
-#basic constants for run
-#this is assuming one hidden layer i.e. a sigmoid layer and a softmax-output layer
-num_hidden = 5  #number of units in hidden layer
-#num_inputs = int(sys.argv[1]) #number of inputs
-#N = int(sys.argv[2])
-#eps = float(sys.argv[3])
-#var = float(sys.argv[4])
-#.....
-precision = np.float128
-'''
-#layer variables:
-hidden_weights = np.zeros((num_inputs,num_hidden),np.float128)   #shape = N x H
-hidden_biases = np.zeros((num_hidden),np.float128) 
-output_weights = np.zeros((num_hidden,2),np.float128)
-output_biases = np.zeros((2),np.float128)
 
-
-init = 100.0
-# hidden layer prior settings; shape, scale, sW, sB, mean
-hpw_shape = 5.0 #hidden layer prior weights shape
-hpw_scale = 2.0 #hidden layer prior weights scale
-hidden_sW = (np.tile(init,reps=hidden_weights.shape[0]).reshape(1,hidden_weights.shape[0])).astype(np.float128) # each input unit has one sigma. so you repeat the same initial sigma D times to get a vector
-#hidden_sW = np.zeros((1,hidden_weights.shape[0]))
-#for i in range(hidden_weights.shape[0]):
-#    new_val = invgamma.rvs(hpw_shape,scale=hpw_scale,size=1)
-#    hidden_sW[0,i] = np.float128(new_val)
-
-hidden_sB = invgamma.rvs(1.0,scale=1.0, size = (1,1)).astype(np.float128) #the biases have just one common prior
-hpw_mean = (np.tile(hpw_scale/(hpw_shape-1),reps=hidden_weights.shape[0]).reshape(1,hidden_weights.shape[0])).astype(np.float128) #maintain means of all the variances of prior of each input weight 
-#end of hidden layer prior
-
-#output layer prior: 
-opw_shape = 0.1
-opw_scale = 0.1
-output_sW = np.array([100.],dtype=np.float128) #outputs have exactly one prior for all weights/biases
-output_sB = invgamma.rvs(1.0,scale=1.0,size=(1,1)).astype(np.float128)#end output layer prior contribution
-#output layer prior end
-
-hidden_weights_grad = np.zeros((num_inputs,num_hidden),np.float128)
-hidden_biases_grad = np.zeros((num_hidden),np.float128)
-output_weights_grad = np.zeros((num_hidden,2),np.float128)
-output_biases_grad = np.zeros((2),np.float128)
-
-hidden_outputs = np.zeros((num_hidden),np.float128)
-output_outputs = np.zeros((2),np.float128)
-#....
-
-#Sampling Variables:
-init_sd_output = 1.0
-init_sd_hidden = 1.0
-pW = np.random.normal(0,init_sd_output,output_weights.shape)
-pB = np.random.normal(0,init_sd_output,output_biases.shape)
-pw = np.random.normal(0,init_sd_hidden,hidden_weights.shape)
-pb = np.random.normal(0,init_sd_hidden,hidden_biases.shape)
-#....
-'''
 
 def compute_outputs():
     global hidden_weights,hidden_biases, output_weights, output_biases, inputs,hidden_outputs,output_outputs
@@ -80,7 +25,10 @@ def compute_outputs():
     hidden_outputs = h_z
 #    return h_z,output_outputs
 
-def compute_grads(hidden_weights, hidden_outputs,hidden_biases,hsW,hsB, output_weights,output_outputs,output_biases,osW,osB,inputs,outputs):
+def compute_grads():
+
+    global hidden_weights, hidden_outputs,hidden_biases,hsW,hsB, output_weights,output_outputs,output_biases,osW,osB,inputs,outputs
+
     diff = outputs - output_outputs    #the main difference term
 
     dB = np.dot(np.ones((1,np.shape(diff)[0])),diff).reshape((output_weights.shape[1],))
@@ -95,24 +43,31 @@ def compute_grads(hidden_weights, hidden_outputs,hidden_biases,hsW,hsB, output_w
     dw = np.dot(inputs.T,back)
     for i in range(len(hidden_weights)):
         dw[i] -= (hidden_weights[i])/(hsW[0][i])
+    
 
-    return dB,dW,db,dw
+    hidden_weights_grad = dw
+    hidden_biases_grad = db
+    output_weights_grad = dW
+    output_biases_grad = dB
+#    return dB,dW,db,dw
 
 
-def prior_contrib(hidden_weights, hidden_biases, hsW, hsB, output_weights, output_biases, osW, osB):
+def prior_contrib():
+    global hidden_weights, hidden_biases, hidden_sW, hidden_sB, output_weights, output_biases, output_sW, output_sB
     val = 0 
-    for i,j in zip(hidden_weights,hsW[0]):
+    for i,j in zip(hidden_weights,hidden_sW[0]):
         val -= (i**2).sum()/(2*j)
 #    print osW
     for i in output_weights:
-        val -= (i**2).sum()/(osW[0])
-    val -= (hidden_biases**2).sum()/(2*hsB[0])
-    val -= (output_biases**2).sum()/(2*osB[0])
-    print "prior",val
+        val -= (i**2).sum()/(output_sW[0])
+    val -= (hidden_biases**2).sum()/(2*hidden_sB[0])
+    val -= (output_biases**2).sum()/(2*output_sB[0])
+#    print "prior",val
     return val
 
 
-def Hamiltonian(outputs, output_outputs,pw,pb,pB,pW,hidden_weights,hidden_biases,hidden_sW,hidden_sB,output_weights,output_biases,output_sW,output_sB):
+def Hamiltonian():
+    global outputs, output_outputs,pw,pb,pB,pW,hidden_weights,hidden_biases,hidden_sW,hidden_sB,output_weights,output_biases,output_sW,output_sB
     log = outputs*np.log(output_outputs)
     log = log.sum()
     k = (pw**2).sum() + (pb**2).sum() + (pW**2).sum() + (pB**2).sum()
@@ -122,26 +77,27 @@ def Hamiltonian(outputs, output_outputs,pw,pb,pB,pW,hidden_weights,hidden_biases
 
 
 
-def gibbs_update(hidden_weights, hidden_biases, hsW, hsB,hpw_mean,hpw_shape,hpw_scale, output_weights, output_biases, osW, osB,opw_shape,opw_scale):
-    #update for ARD
-    new_hsW = np.zeros(hsW.shape)
+def gibbs_update():
+    global hidden_weights, hidden_biases, hidden_sW, hidden_sB,hpw_mean,hpw_shape,hpw_scale, output_weights, output_biases, output_sW, output_sB,opw_shape,opw_scale
+#update for ARD
+    new_hsW = np.zeros(hidden_sW.shape)
     new_mean = np.zeros(hpw_mean.shape)
-    n_w = np.float128(hidden_weights.shape[1])
+    n_w = precision(hidden_weights.shape[1])
     hpw_shape_new = hpw_shape+ n_w/2.0
     for i in range(len(hidden_weights)):
         hpw_scale_new=hpw_scale + (hidden_weights[i]**2).sum()/2.0
         new_val = invgamma.rvs(hpw_shape_new,scale=hpw_scale_new,size=1)
-        new_hsW[0,i]=np.float128(new_val)
-        new_mean[0,i] = np.float128(hpw_scale_new/(hpw_shape_new-1.0))
+        new_hsW[0,i]=precision(new_val)
+        new_mean[0,i] = precision(hpw_scale_new/(hpw_shape_new-1.0))
     
-    hsW = new_hsW.astype(np.float128)
-    hpw_mean = new_mean.astype(np.float128)
-    n_b = np.float128(hidden_biases.shape[0])
+    hidden_sW = new_hsW.astype(precision)
+    hpw_mean = new_mean.astype(precision)
+    n_b = precision(hidden_biases.shape[0])
     hpb_shape_new = hpw_shape + n_b/2.0
     hpb_scale_new = hpw_scale + (hidden_biases**2).sum()/2.0
     new_val = invgamma.rvs(hpb_shape_new, scale=hpb_scale_new,size=1)
-    hsB = np.float128(new_val)
-    
+    hidden_sB = precision(new_val)
+#START HERE TOMORROW
     #update for GLP
     n_w = np.float128(output_weights.shape[0]*output_weights.shape[1])
     shape_new = opw_shape + n_w/2.0
@@ -206,7 +162,7 @@ if __name__ == "__main__":
     #input file is given as cmd-line arg
     params = read_input(sys.argv[1])
     #precision argument is supposed to say double or single. The default value is double
-    precision = np.float128 if params['precision']=="double" else np.float32  
+    precision = np.float32 if params['precision']=="single" else np.float128
 
     #:    global hidden_weights, hidden_biases, output_weights, output_biases
     #input vector and output vector files are specified
@@ -215,16 +171,65 @@ if __name__ == "__main__":
     num_inputs = len(inputs[0]) #number of inputs is directly inferred from the file
     num_hidden = int(params['num_hidden_units']) #number of hidden units for the NN is specified in input
     
-    # the "hidden_weights" parameter allows for 
+    # the "hidden_weights" parameter allows for you to go two ways: specify a float to specify a variance from which to draw the hidden_weights (centered on 0). The other is to specify a file from which you can directly load values of hidden_weights. Same will be applied for hidden_biases, output_weights, output_biases 
+
     if isfloat(params['hidden_weights']): 
         var = float(params['hidden_weights'])
         hidden_weights = np.random.normal(0,var,(num_inputs,num_hidden)).astype(precision)
     else:
-        hidden_weights = np.loadtxt(params['hidden_weights'])
-    hidden_biases +=  np.random.normal(0,var,(num_hidden)).astype(np.float128)
-    output_weights += np.random.normal(0,var,(num_hidden,2)).astype(np.float128)
-    #output_weights += np.loadtxt('input_files/init_ow')
-    output_biases += np.random.normal(0,var,(2)).astype(np.float128)
+        hidden_weights = np.loadtxt(params['hidden_weights'],dtype=precision)
+
+    if isfloat(params['hidden_biases']): 
+        var = float(params['hidden_biases'])
+        hidden_biases = np.random.normal(0,var,(num_hidden)).astype(precision)
+    else:
+        hidden_biases = np.loadtxt(params['hidden_biases'],dtype=precision)
+
+    if isfloat(params['output_weights']): 
+        var = float(params['output_weights'])
+        output_weights = np.random.normal(0,var,(num_hidden,2)).astype(precision)
+    else:
+        output_weights = np.loadtxt(params['output_weights'],dtype=precision)
+
+    if isfloat(params['output_biases']): 
+        var = float(params['output_biases'])
+        output_biases = np.random.normal(0,var,(2)).astype(precision)
+    else:
+        output_biases = np.loadtxt(params['output_biases'],dtype=precision)
+    
+        
+    init = float(params['ard_init'])
+    # hidden layer prior settings; shape, scale, sW, sB, mean
+    hpw_shape = float(params['ard_prior_shape']) #hidden layer prior weights shape
+    hpw_scale =  float(params['ard_prior_scale']) #hidden layer prior weights scale
+    hidden_sW = (np.tile(init,reps=hidden_weights.shape[0]).reshape(1,hidden_weights.shape[0])).astype(precision) # each input unit has one sigma. so you repeat the same initial sigma D times to get a vector
+    hidden_sB = invgamma.rvs(1.0,scale=1.0, size = (1,1)).astype(precision) #the biases have just one common prior
+    hpw_mean = (np.tile(hpw_scale/(hpw_shape-1),reps=hidden_weights.shape[0]).reshape(1,hidden_weights.shape[0])).astype(precision) #maintain means of all the variances of prior of each input weight 
+    #end of hidden layer prior
+    
+    opw_shape = 0.1
+    opw_scale = 0.1
+    output_sW = np.array([100.],dtype=precision) #outputs have exactly one prior for all weights/biases
+    output_sB = invgamma.rvs(1.0,scale=1.0,size=(1,1)).astype(precision)#end output layer prior contribution
+
+    hidden_weights_grad = np.zeros((num_inputs,num_hidden),precision)
+    hidden_biases_grad = np.zeros((num_hidden),precision)
+    output_weights_grad = np.zeros((num_hidden,2),precision)
+    output_biases_grad = np.zeros((2),precision)
+    
+    hidden_outputs = np.zeros((num_hidden),precision)
+    output_outputs = np.zeros((2),precision)
+    #....
+    
+    #Sampling Variables:
+    init_sd_output = 1.0    #not provided in input parameters because it doesn't appear to be something that is changed so far
+    init_sd_hidden = 1.0
+    pW = np.random.normal(0,init_sd_output,output_weights.shape).astype(precision)
+    pB = np.random.normal(0,init_sd_output,output_biases.shape).astype(precision)
+    pw = np.random.normal(0,init_sd_hidden,hidden_weights.shape).astype(precision)
+    pb = np.random.normal(0,init_sd_hidden,hidden_biases.shape).astype(precision)
+    #....
+
 
 #    eps = 0.00001
     compute_outputs()
