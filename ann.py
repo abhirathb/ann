@@ -4,12 +4,13 @@ from scipy.stats import invgamma
 #basic constants for run
 #this is assuming one hidden layer i.e. a sigmoid layer and a softmax-output layer
 num_hidden = 5  #number of units in hidden layer
-num_inputs = int(sys.argv[1]) #number of inputs
-N = int(sys.argv[2])
-eps = float(sys.argv[3])
-var = float(sys.argv[4])
+#num_inputs = int(sys.argv[1]) #number of inputs
+#N = int(sys.argv[2])
+#eps = float(sys.argv[3])
+#var = float(sys.argv[4])
 #.....
-
+precision = np.float128
+'''
 #layer variables:
 hidden_weights = np.zeros((num_inputs,num_hidden),np.float128)   #shape = N x H
 hidden_biases = np.zeros((num_hidden),np.float128) 
@@ -55,9 +56,10 @@ pB = np.random.normal(0,init_sd_output,output_biases.shape)
 pw = np.random.normal(0,init_sd_hidden,hidden_weights.shape)
 pb = np.random.normal(0,init_sd_hidden,hidden_biases.shape)
 #....
+'''
 
-
-def compute_outputs(hidden_weights, hidden_biases, output_weights, output_biases,inputs):
+def compute_outputs():
+    global hidden_weights,hidden_biases, output_weights, output_biases, inputs,hidden_outputs,output_outputs
     h_z = np.dot(inputs,hidden_weights)
     for i in range(len(h_z)):
         h_z[i]+=hidden_biases
@@ -75,8 +77,8 @@ def compute_outputs(hidden_weights, hidden_biases, output_weights, output_biases
         output_outputs[i][0] = o1/(o1+o2)
         output_outputs[i][1] = o2/(o1+o2)
 
-
-    return h_z,output_outputs
+    hidden_outputs = h_z
+#    return h_z,output_outputs
 
 def compute_grads(hidden_weights, hidden_outputs,hidden_biases,hsW,hsB, output_weights,output_outputs,output_biases,osW,osB,inputs,outputs):
     diff = outputs - output_outputs    #the main difference term
@@ -167,8 +169,8 @@ def leap_frog(hw, hb,hsW,hsB, pw,pb, dw,db, ow,ob,osW,osB,pW,pB,dW,dB,eps,inputs
     ow += (eps)*pW
     ob += (eps)*pB
     
-    hz,oo = compute_outputs(hw,hb,ow,ob,inputs)
-    dB,dW,db,dw = compute_grads(hw,hz,hb,hsW,hsB,ow,oo,ob,osW,osB,inputs,outputs)
+    compute_outputs()
+    dB,dW,db,dw = compute_grads(hw,hidden_outputs,hb,hsW,hsB,ow,oo,ob,osW,osB,inputs,outputs)
 
     pw += (eps/2.0)*dw
     pb += (eps/2.0)*db
@@ -178,10 +180,33 @@ def leap_frog(hw, hb,hsW,hsB, pw,pb, dw,db, ow,ob,osW,osB,pW,pB,dW,dB,eps,inputs
     return hw,hb,pw,pb,ow,ob,pW,pB
 
 
+
+def read_input(fname):
+    f = open(fname)
+    params = {}
+    for i in f.readlines():
+        i = i.split(":")
+        key = i[0]
+        value = i[1][:-1]
+        if key[0]!="#":
+            params[key]=value
+    return params
+        
+
+
+
 if __name__ == "__main__":
+
+
+    params = read_input(sys.argv[1])
+    precision = np.float128 if params['precision']=="double" else np.float32
+
     #:    global hidden_weights, hidden_biases, output_weights, output_biases
-    inputs = np.loadtxt('input_files/maf_%d_%d'%(num_inputs,N),dtype=np.float128)
-    outputs = np.loadtxt('input_files/hc_%d'%(N),dtype=np.float128)
+    
+    inputs = np.loadtxt(params['input_vector'],dtype=precision)
+    outputs = np.loadtxt(params['output_vector'],dtype=precision)
+    num_hidden = int(params['num_hidden_units'])
+
     hidden_weights = np.random.normal(0,var,(num_inputs,num_hidden)).astype(np.float128)
     #hidden_weights = np.loadtxt('input_files/init_hw')
     hidden_biases +=  np.random.normal(0,var,(num_hidden)).astype(np.float128)
@@ -190,7 +215,7 @@ if __name__ == "__main__":
     output_biases += np.random.normal(0,var,(2)).astype(np.float128)
 
 #    eps = 0.00001
-    hidden_outputs,output_outputs = compute_outputs(hidden_weights,hidden_biases, output_weights, output_biases, inputs)
+    compute_outputs()
     hidden_sW, hidden_sB, hpw_mean, output_sW, output_sB = gibbs_update(hidden_weights, hidden_biases, hidden_sW, hidden_sB, hpw_mean, hpw_shape, hpw_scale, output_weights, output_biases, output_sW, output_sB, opw_shape, opw_scale)
     dB,dW,db,dW = compute_grads(hidden_weights,hidden_outputs, hidden_biases,hidden_sW,hidden_sB, output_weights, output_outputs,output_biases,output_sW,output_sB, inputs,outputs)
     steps = 10
@@ -198,7 +223,7 @@ if __name__ == "__main__":
     for i in range(steps):
         print "Step:",(i+1)
 
-        hidden_outputs,output_outputs = compute_outputs(hidden_weights,hidden_biases, output_weights, output_biases, inputs)
+        compute_outputs()
         output_biases_grad,output_weights_grad,hidden_biases_grad,hidden_weights_grad = compute_grads(hidden_weights,hidden_outputs, hidden_biases,hidden_sW,hidden_sB, output_weights, output_outputs,output_biases,output_sW,output_sB, inputs,outputs)
         l,k,U,H = Hamiltonian(outputs,output_outputs,pw,pb,pW,pB,hidden_weights,hidden_biases,hidden_sW,hidden_sB,output_weights, output_biases, output_sW, output_sB)
 #        if i==0:
