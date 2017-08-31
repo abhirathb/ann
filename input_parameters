@@ -14,6 +14,8 @@ hmc:
 hmc_steps:
 hmc_eps:
 hmc_prior:
-hmc_prior_init:
 hmc_log:
 hmc_verbose:
+ard_prior_scale:
+ard_prior_shape:
+ard_init:

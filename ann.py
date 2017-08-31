@@ -193,22 +193,34 @@ def read_input(fname):
     return params
         
 
-
+def isfloat(val):
+    try:
+        a = float(val)
+        return True
+    except:
+        return False
+ 
 
 if __name__ == "__main__":
 
-
+    #input file is given as cmd-line arg
     params = read_input(sys.argv[1])
-    precision = np.float128 if params['precision']=="double" else np.float32
+    #precision argument is supposed to say double or single. The default value is double
+    precision = np.float128 if params['precision']=="double" else np.float32  
 
     #:    global hidden_weights, hidden_biases, output_weights, output_biases
-    
+    #input vector and output vector files are specified
     inputs = np.loadtxt(params['input_vector'],dtype=precision)
     outputs = np.loadtxt(params['output_vector'],dtype=precision)
-    num_hidden = int(params['num_hidden_units'])
-
-    hidden_weights = np.random.normal(0,var,(num_inputs,num_hidden)).astype(np.float128)
-    #hidden_weights = np.loadtxt('input_files/init_hw')
+    num_inputs = len(inputs[0]) #number of inputs is directly inferred from the file
+    num_hidden = int(params['num_hidden_units']) #number of hidden units for the NN is specified in input
+    
+    # the "hidden_weights" parameter allows for 
+    if isfloat(params['hidden_weights']): 
+        var = float(params['hidden_weights'])
+        hidden_weights = np.random.normal(0,var,(num_inputs,num_hidden)).astype(precision)
+    else:
+        hidden_weights = np.loadtxt(params['hidden_weights'])
     hidden_biases +=  np.random.normal(0,var,(num_hidden)).astype(np.float128)
     output_weights += np.random.normal(0,var,(num_hidden,2)).astype(np.float128)
     #output_weights += np.loadtxt('input_files/init_ow')
