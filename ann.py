@@ -23,33 +23,31 @@ def compute_outputs():
         output_outputs[i][1] = o2/(o1+o2)
 
     hidden_outputs = h_z
-#    return h_z,output_outputs
 
 def compute_grads():
 
-    global hidden_weights, hidden_outputs,hidden_biases,hsW,hsB, output_weights,output_outputs,output_biases,osW,osB,inputs,outputs
+    global hidden_weights, hidden_outputs,hidden_biases,hidden_sW,hidden_sB, output_weights,output_outputs,output_biases,output_sW,output_sB,inputs,outputs,hidden_weights_grad,hidden_biases_grad, output_weights_grad, output_biases_grad 
 
     diff = outputs - output_outputs    #the main difference term
 
     dB = np.dot(np.ones((1,np.shape(diff)[0])),diff).reshape((output_weights.shape[1],))
-    dB -= output_biases/osB[0]
+    dB -= output_biases/output_sB[0]
     dW = np.dot(hidden_outputs.T,diff) 
-    dW -= output_weights/osW[0]
+    dW -= output_weights/output_sW[0]
     bp = np.dot(diff,output_weights.T)
     prod = hidden_outputs*(1-hidden_outputs)
     back = bp*prod
     db = np.dot(np.ones((1,np.shape(back)[0])),back).reshape((hidden_weights.shape[1],))
-    db -= hidden_biases/hsB[0]
+    db -= hidden_biases/hidden_sB[0]
     dw = np.dot(inputs.T,back)
     for i in range(len(hidden_weights)):
-        dw[i] -= (hidden_weights[i])/(hsW[0][i])
+        dw[i] -= (hidden_weights[i])/(hidden_sW[0][i])
     
 
     hidden_weights_grad = dw
     hidden_biases_grad = db
     output_weights_grad = dW
     output_biases_grad = dB
-#    return dB,dW,db,dw
 
 
 def prior_contrib():
@@ -57,12 +55,10 @@ def prior_contrib():
     val = 0 
     for i,j in zip(hidden_weights,hidden_sW[0]):
         val -= (i**2).sum()/(2*j)
-#    print osW
     for i in output_weights:
         val -= (i**2).sum()/(output_sW[0])
     val -= (hidden_biases**2).sum()/(2*hidden_sB[0])
     val -= (output_biases**2).sum()/(2*output_sB[0])
-#    print "prior",val
     return val
 
 
@@ -72,7 +68,7 @@ def Hamiltonian():
     log = log.sum()
     k = (pw**2).sum() + (pb**2).sum() + (pW**2).sum() + (pB**2).sum()
     
-    p = prior_contrib(hidden_weights,hidden_biases,hidden_sW,hidden_sB,output_weights, output_biases, output_sW, output_sB)
+    p = prior_contrib()
     return log,k,log+p,(log+p-k)
 
 
@@ -97,44 +93,41 @@ def gibbs_update():
     hpb_scale_new = hpw_scale + (hidden_biases**2).sum()/2.0
     new_val = invgamma.rvs(hpb_shape_new, scale=hpb_scale_new,size=1)
     hidden_sB = precision(new_val)
-#START HERE TOMORROW
     #update for GLP
-    n_w = np.float128(output_weights.shape[0]*output_weights.shape[1])
+    n_w = precision(output_weights.shape[0]*output_weights.shape[1])
     shape_new = opw_shape + n_w/2.0
     scale_new = opw_scale + (output_weights**2).sum()/2.0
     new_val = invgamma.rvs(shape_new, scale=scale_new, size=1)
     
-    osW = np.float128(new_val)
+    output_sW = precision(new_val)
 
-    n_b = np.float128(output_biases.shape[0])
+    n_b = precision(output_biases.shape[0])
     shape_new = opw_shape+ n_b/2.0
     scale_new = opw_scale + (output_biases**2).sum()/2.0
     new_val = invgamma.rvs(shape_new,scale=scale_new,size=1)
-    osB = np.float128(new_val)
+    output_sB = precision(new_val)
     
-    return hsW, hsB, hpw_mean, osW, osB 
     
-def leap_frog(hw, hb,hsW,hsB, pw,pb, dw,db, ow,ob,osW,osB,pW,pB,dW,dB,eps,inputs,outputs):
-    pw += (eps/2.0)*dw
-    pb += (eps/2.0)*db
-    pW += (eps/2.0)*dW
-    pB += (eps/2.0)*dB
+def leap_frog():
+    global hidden_weights, hidden_biases,hidden_sW,hidden_sB, pw,pb, hidden_weights_grad, hidden_biases_grad, output_weights,output_biases,output_sW,output_sB,pW,pB,output_weights_grad,output_biases_grad,eps,inputs,outputs,eps
+    pw += (eps/2.0)*hidden_weights_grad
+    pb += (eps/2.0)*hidden_biases_grad
+    pW += (eps/2.0)*output_weights_grad
+    pB += (eps/2.0)*output_biases_grad
 
-    hw += (eps)*pw
-    hb += (eps)*pb
-    ow += (eps)*pW
-    ob += (eps)*pB
+    hidden_weights += (eps)*pw
+    hidden_biases += (eps)*pb
+    output_weights += (eps)*pW
+    output_biases += (eps)*pB
     
     compute_outputs()
-    dB,dW,db,dw = compute_grads(hw,hidden_outputs,hb,hsW,hsB,ow,oo,ob,osW,osB,inputs,outputs)
+    compute_grads()
 
-    pw += (eps/2.0)*dw
-    pb += (eps/2.0)*db
-    pW += (eps/2.0)*dW
-    pB += (eps/2.0)*dB
-
-    return hw,hb,pw,pb,ow,ob,pW,pB
-
+    pw += (eps/2.0)*hidden_weights_grad
+    pb += (eps/2.0)*hidden_biases_grad
+    pW += (eps/2.0)*output_weights_grad
+    pB += (eps/2.0)*output_biases_grad
+    
 
 
 def read_input(fname):
@@ -231,25 +224,21 @@ if __name__ == "__main__":
     #....
 
 
-#    eps = 0.00001
+    eps = float(params['hmc_eps'])
     compute_outputs()
-    hidden_sW, hidden_sB, hpw_mean, output_sW, output_sB = gibbs_update(hidden_weights, hidden_biases, hidden_sW, hidden_sB, hpw_mean, hpw_shape, hpw_scale, output_weights, output_biases, output_sW, output_sB, opw_shape, opw_scale)
-    dB,dW,db,dW = compute_grads(hidden_weights,hidden_outputs, hidden_biases,hidden_sW,hidden_sB, output_weights, output_outputs,output_biases,output_sW,output_sB, inputs,outputs)
-    steps = 10
-#    print "outputsW:",output_sW
-    for i in range(steps):
+    gibbs_update()
+    compute_grads()
+    hmc_steps = int(params['hmc_steps'])
+    for i in range(hmc_steps):
         print "Step:",(i+1)
 
         compute_outputs()
-        output_biases_grad,output_weights_grad,hidden_biases_grad,hidden_weights_grad = compute_grads(hidden_weights,hidden_outputs, hidden_biases,hidden_sW,hidden_sB, output_weights, output_outputs,output_biases,output_sW,output_sB, inputs,outputs)
-        l,k,U,H = Hamiltonian(outputs,output_outputs,pw,pb,pW,pB,hidden_weights,hidden_biases,hidden_sW,hidden_sB,output_weights, output_biases, output_sW, output_sB)
-#        if i==0:
- #           H = H[0]
-        hidden_sW, hidden_sB, hpw_mean, output_sW, output_sB = gibbs_update(hidden_weights, hidden_biases, hidden_sW, hidden_sB, hpw_mean, hpw_shape, hpw_scale, output_weights, output_biases, output_sW, output_sB, opw_shape, opw_scale)
-        hidden_weights,hidden_biases,pw,pb,output_weights,output_biases,pW,pB = leap_frog(hidden_weights, hidden_biases,hidden_sW,hidden_sB,pw,pb,hidden_weights_grad,hidden_biases_grad,output_weights,output_biases,output_sW,output_sB,pW,pB,output_weights_grad,output_biases_grad,eps,inputs,outputs)
-
-        output_biases_grad,output_weights_grad,hidden_biases_grad,hidden_weights_grad = compute_grads(hidden_weights,hidden_outputs,hidden_biases,hidden_sW,hidden_sB, output_weights, output_outputs,output_biases,output_sW,output_sB, inputs,outputs)
-        l_new,k_new,U_new,H_new = Hamiltonian(outputs,output_outputs,pw,pb,pW,pB,hidden_weights,hidden_biases,hidden_sW,hidden_sB,output_weights, output_biases, output_sW, output_sB)
+        compute_grads()
+        l,k,U,H = Hamiltonian()
+        gibbs_update()
+        leap_frog()
+        compute_outputs()
+        l_new,k_new, U_new, H_new = Hamiltonian()
         
         print 'current U:',U
         print 'current L:',l
