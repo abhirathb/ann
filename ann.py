@@ -26,28 +26,50 @@ def compute_outputs():
 
 def compute_grads():
 
-    global hidden_weights, hidden_outputs,hidden_biases,hidden_sW,hidden_sB, output_weights,output_outputs,output_biases,output_sW,output_sB,inputs,outputs,hidden_weights_grad,hidden_biases_grad, output_weights_grad, output_biases_grad 
+    global hidden_weights, hidden_outputs,hidden_biases,hidden_sW,hidden_sB, output_weights,output_outputs,output_biases,output_sW,output_sB,inputs,outputs,hidden_weights_grad,hidden_biases_grad, output_weights_grad, output_biases_grad,log_on, prior_on
 
     diff = outputs - output_outputs    #the main difference term
-
-    dB = np.dot(np.ones((1,np.shape(diff)[0])),diff).reshape((output_weights.shape[1],))
-    dB -= output_biases/output_sB[0]
-    dW = np.dot(hidden_outputs.T,diff) 
-    dW -= output_weights/output_sW[0]
-    bp = np.dot(diff,output_weights.T)
-    prod = hidden_outputs*(1-hidden_outputs)
-    back = bp*prod
-    db = np.dot(np.ones((1,np.shape(back)[0])),back).reshape((hidden_weights.shape[1],))
-    db -= hidden_biases/hidden_sB[0]
-    dw = np.dot(inputs.T,back)
-    for i in range(len(hidden_weights)):
-        dw[i] -= (hidden_weights[i])/(hidden_sW[0][i])
+    if log_on:
+        dB = np.dot(np.ones((1,np.shape(diff)[0])),diff).reshape((output_weights.shape[1],))
+        dW = np.dot(hidden_outputs.T,diff) 
+        bp = np.dot(diff,output_weights.T)
+        prod = hidden_outputs*(1-hidden_outputs)
+        back = bp*prod
+        db = np.dot(np.ones((1,np.shape(back)[0])),back).reshape((hidden_weights.shape[1],))
+        dw = np.dot(inputs.T,back)
+    if prior_on:
+        dB -= output_biases/output_sB[0]
+        dW -= output_weights/output_sW[0]
+        db -= hidden_biases/hidden_sB[0]
+        for i in range(len(hidden_weights)):
+            dw[i] -= (hidden_weights[i])/(hidden_sW[0][i])
     
 
     hidden_weights_grad = dw
     hidden_biases_grad = db
     output_weights_grad = dW
     output_biases_grad = dB
+
+def compute_Egrads():
+
+    global hidden_weights, hidden_outputs,hidden_biases,hidden_sW,hidden_sB, output_weights,output_outputs,output_biases,output_sW,output_sB,inputs,outputs,hidden_weights_Egrad,hidden_biases_Egrad, output_weights_Egrad, output_biases_Egrad 
+
+    diff = outputs - output_outputs    #the main difference term
+    p = outupt_outputs[::,0]*output_outputs[::,1]
+    diff = diff*p
+    dB = np.dot(np.ones((1,np.shape(diff)[0])),diff).reshape((output_weights.shape[1],))
+    dW = np.dot(hidden_outputs.T,diff) 
+    bp = np.dot(diff,output_weights.T)
+    prod = hidden_outputs*(1-hidden_outputs)
+    back = bp*prod
+    db = np.dot(np.ones((1,np.shape(back)[0])),back).reshape((hidden_weights.shape[1],))
+    dw = np.dot(inputs.T,back)
+
+    hidden_weights_Egrad = dw
+    hidden_biases_Egrad = db
+    output_weights_Egrad = dW
+    output_biases_Egrad = dB
+
 
 
 def prior_contrib():
@@ -63,12 +85,17 @@ def prior_contrib():
 
 
 def Hamiltonian():
-    global outputs, output_outputs,pw,pb,pB,pW,hidden_weights,hidden_biases,hidden_sW,hidden_sB,output_weights,output_biases,output_sW,output_sB
-    log = outputs*np.log(output_outputs)
-    log = log.sum()
+    global outputs, output_outputs,pw,pb,pB,pW,hidden_weights,hidden_biases,hidden_sW,hidden_sB,output_weights,output_biases,output_sW,output_sB, prior_on, log_on
+    if log_on:
+        log = outputs*np.log(output_outputs)
+        log = log.sum()
+    else:
+        log = 0
     k = (pw**2).sum() + (pb**2).sum() + (pW**2).sum() + (pB**2).sum()
-    
-    p = prior_contrib()
+    if prior_on:
+        p = prior_contrib()
+    else:
+        p=0
     return log,k,log+p,(log+p-k)
 
 
@@ -129,7 +156,60 @@ def leap_frog():
     pB += (eps/2.0)*output_biases_grad
     
 
+def error():
+    global outputs, output_outputs
+    rmsd = 0
+    for i in range(len(outputs)):
+        rmsd += (outputs[i][0] - output_outputs[i][0])**2
+    return rmsd/len(outputs)
 
+
+
+
+def initialise():
+    global hidden_weights, initialise_steps, hidden_biases, output_weights, output_biases, initialis_eps, hidden_weights_grad, hidden_biases_grad, output_weights_grad, output_biases_grad
+    print 'Beginning Initialisation Stes:'
+    for i in range(initialise_steps):
+        compute_outputs()
+
+        l,k,U,H = Hamiltonian()
+        if params['descent'] == "hamiltonian":
+            compute_grads()
+            hidden_weights += initialise_eps*hidden_weights_grad
+            hidden_biases += initialise_eps*hidden_biases_grad
+            output_weights += initialise_eps*output_weights_grad
+            output_biases += initialise_eps*output_biases_grad
+
+        if params['descent'] == "error":
+            compute_Egrads()
+            hidden_weights += initialise_eps*hidden_weights_Egrad
+            hidden_biases += initialise_eps*hidden_biases_Egrad
+            output_weights += initialise_eps*output_weights_Egrad
+            output_biases += initialise_eps*output_biases_Egrad
+
+        compute_outputs()
+        l_new,k_new, U_new, H_new = Hamiltonian()
+
+        print 'Iteration:',i
+        print 'RMSD Accuracy:',error()
+        print 'current U:',U
+        print 'current L:',l
+        print 'current K:',k
+        print 'current H:',H
+        print 'proposed U:',U_new
+        print 'proposed L:',l_new
+        print 'proposed K:',k_new
+        print 'proposed H:',H_new
+        print 'diff-h:',H_new-H
+        print 'diff-k:',k_new-k
+        print 'diff-u:',U_new-U
+        print 'diff-l:',l_new-l
+        print 'ratio-u:',(U_new-U)/U
+        print 'ratio-l:',(l_new-l)/l
+        print 'ratio-h:',(H_new-H)/H
+        print 'ratio-k:',(k_new-k)/k
+
+        
 def read_input(fname):
     f = open(fname)
     params = {}
@@ -148,7 +228,39 @@ def isfloat(val):
         return True
     except:
         return False
- 
+
+def hmc():
+    global prior_on
+    for i in range(hmc_steps):
+        print "Step:",(i+1)
+
+        compute_outputs()
+        compute_grads()
+        l,k,U,H = Hamiltonian()
+        if prior_on:
+            gibbs_update()
+        leap_frog()
+        compute_outputs()
+        l_new,k_new, U_new, H_new = Hamiltonian()
+        
+        print 'current U:',U
+        print 'current L:',l
+        print 'current K:',k
+        print 'current H:',H
+        print 'proposed U:',U_new
+        print 'proposed L:',l_new
+        print 'proposed K:',k_new
+        print 'proposed H:',H_new
+        print 'diff-h:',H_new-H
+        print 'diff-k:',k_new-k
+        print 'diff-u:',U_new-U
+        print 'diff-l:',l_new-l
+        print 'ratio-u:',(U_new-U)/U
+        print 'ratio-l:',(l_new-l)/l
+        print 'ratio-h:',(H_new-H)/H
+        print 'ratio-k:',(k_new-k)/k
+
+
 
 if __name__ == "__main__":
 
@@ -156,7 +268,6 @@ if __name__ == "__main__":
     params = read_input(sys.argv[1])
     #precision argument is supposed to say double or single. The default value is double
     precision = np.float32 if params['precision']=="single" else np.float128
-
     #:    global hidden_weights, hidden_biases, output_weights, output_biases
     #input vector and output vector files are specified
     inputs = np.loadtxt(params['input_vector'],dtype=precision)
@@ -210,6 +321,11 @@ if __name__ == "__main__":
     output_weights_grad = np.zeros((num_hidden,2),precision)
     output_biases_grad = np.zeros((2),precision)
     
+    hidden_weights_Egrad = np.zeros((num_inputs,num_hidden),precision)
+    hidden_biases_Egrad = np.zeros((num_hidden),precision)
+    output_weights_Egrad = np.zeros((num_hidden,2),precision)
+    output_biases_Egrad = np.zeros((2),precision)
+
     hidden_outputs = np.zeros((num_hidden),precision)
     output_outputs = np.zeros((2),precision)
     #....
@@ -225,36 +341,17 @@ if __name__ == "__main__":
 
 
     eps = float(params['hmc_eps'])
-    compute_outputs()
-    gibbs_update()
-    compute_grads()
+    initialise_eps = float(params['initialise_eps'])
+    initialise_steps = int(params['initialise_steps'])
     hmc_steps = int(params['hmc_steps'])
-    for i in range(hmc_steps):
-        print "Step:",(i+1)
+    
+    log_on = True if not  params['log_on'] else ( False if params['log_on']=="false" else True )
+    prior_on = True if not  params['prior_on'] else ( False if params['prior_on']=="false" else True )
+    
+    gibbs_update()
+    
+    if not params['initialise']=='false':
+        initialise()
+    if not params['hmc']=='false':
+        hmc()
 
-        compute_outputs()
-        compute_grads()
-        l,k,U,H = Hamiltonian()
-        gibbs_update()
-        leap_frog()
-        compute_outputs()
-        l_new,k_new, U_new, H_new = Hamiltonian()
-        
-        print 'current U:',U
-        print 'current L:',l
-        print 'current K:',k
-        print 'current H:',H
-        print 'proposed U:',U_new
-        print 'proposed L:',l_new
-        print 'proposed K:',k_new
-        print 'proposed H:',H_new
-        print 'diff-h:',H_new-H
-        print 'diff-k:',k_new-k
-        print 'diff-u:',U_new-U
-        print 'diff-l:',l_new-l
-        print 'ratio-u:',(U_new-U)/U
-        print 'ratio-l:',(l_new-l)/l
-        print 'ratio-h:',(H_new-H)/H
-        print 'ratio-k:',(k_new-k)/k
-
-print "MEAN:",hpw_mean
