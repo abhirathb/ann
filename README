@@ -1,1 +1,111 @@
 Artificial Neural Network to study HMC
+
+
+
+PRE-REQUISITE:
+==============
+numpy
+scipy
+python2.7
+
+
+RUNNING:
+========
+python ann.py < input file path >
+
+
+
+OPTIONS:
+========
+
+an input file with the following options needs to be specificed to run the program
+
+input_vector: 
+-------------
+path to the file containint input unit values for each subject
+
+output_vector: 
+-------------
+path to the expected output file
+
+num_hidden_units: 
+-----------------
+number of hidden units to be used
+
+hidden_weights:
+---------------
+can either supply the path to a file which can be loaded directly as a weights file for hidden units or provide variance of a gaussian from which the weights will be drawn.
+
+hidden_biases:
+-------------
+same as hidden_weights
+
+output_weights:
+---------------
+same as hidden_weights
+
+output_biases:
+--------------
+same as hidden_weights
+
+initialise:
+----------
+whether to run the initialise routine: possible values: "true" or "false"
+
+initialise_steps:
+----------------
+number of iterations in the initialisation routine
+
+initialise_eps:
+--------------
+step-size (epsilon) for the initialise routine
+
+initialize_verbose:
+-------------------
+whether or not to print iteration-wise state of the neural network. [ not implemented in current version ] 
+
+descent:
+-------
+what descent algorithm to use "log"(for log-like) or "error"(for RMSD)
+
+hmc:
+----
+whether to call the HMC routine
+
+hmc_steps:
+---------
+number of steps to run HMC for.
+ 	
+hmc_eps:
+-------
+step-size(epsilon) value for HMC steps
+
+hmc_verbose:
+-----------
+whether or not to print iteration-wise state of the neural network. [ not implemented in current version ] 
+
+log_on:
+-------
+whether to include log-like contribution in the hamiltonian for HMC: Possible values being "true" or "false"
+
+prior_on:
+--------
+whether to include prior contribution in the hamiltonian for HMC: Possible values being "true" or "false"
+
+precision:
+----------
+machine precision for all values: Possible values are "single" or "double"
+
+ard_prior_scale:
+---------------
+scale parameter for the ARD prior of the hidden layer
+
+ard_prior_shape:
+---------------
+shape parameter for the ARD prior of the hidden layer
+
+ard_init:
+---------------
+initial value of the  ARD prior of the hidden layer. [Implemented to imitate Andy's code ]
+
+
