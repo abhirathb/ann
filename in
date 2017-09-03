@@ -21,4 +21,4 @@ ard_prior_shape:5.0
 ard_init:100.0
 log_on:true
 prior_on:false
-descent:hamiltonian
+descent:log
