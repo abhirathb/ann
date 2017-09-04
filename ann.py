@@ -219,6 +219,8 @@ def initialise():
         print 'ratio-k:',(k_new-k)/k
         if track_theta:
             print_theta()
+        if track_prior:
+            print_variances()
 
 
 def print_theta():
@@ -236,12 +238,6 @@ def print_theta():
         print "B_%d=%f"%(i,j)
 
 
-
-<<<<<<< HEAD
-=======
-    for_init = False
-        
->>>>>>> 16d4c8e63bfaf467a80017a41e9a317fe1db44cd
 def read_input(fname):
     f = open(fname)
     params = {}
@@ -297,6 +293,13 @@ def hmc():
         if track_theta:
             print_theta()
     
+def print_variances():
+    global hidden_sW, hidden_sB, output_sW, output_sB
+    for i,j in enumerate(hidden_sW):
+        print "sw_%d=%f"%(i,j)
+    print "sb=",(hidden_sB)
+    print "oW=",(output_sB)
+    print "oB=",(output_sW)
 
 
 if __name__ == "__main__":
@@ -386,6 +389,7 @@ if __name__ == "__main__":
     log_on = True if not  params['log_on'] else ( False if params['log_on']=="false" else True )
     prior_on = True if not  params['prior_on'] else ( False if params['prior_on']=="false" else True )
     track_theta = True if params['track_theta']=='true' else False
+    track_prior = True if params['track_prior']=='true' else False
 
     gibbs_update()
     if track_theta:
