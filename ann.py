@@ -29,6 +29,10 @@ def compute_grads():
     global hidden_weights, hidden_outputs,hidden_biases,hidden_sW,hidden_sB, output_weights,output_outputs,output_biases,output_sW,output_sB,inputs,outputs,hidden_weights_grad,hidden_biases_grad, output_weights_grad, output_biases_grad,log_on, prior_on
 
     diff = outputs - output_outputs    #the main difference term
+    dw = np.zeros((num_inputs,num_hidden),precision)
+    db = np.zeros((num_hidden),precision)
+    dW = np.zeros((num_hidden,2),precision)
+    dB = np.zeros((2),precision)
     if log_on:
         dB = np.dot(np.ones((1,np.shape(diff)[0])),diff).reshape((output_weights.shape[1],))
         dW = np.dot(hidden_outputs.T,diff) 
@@ -55,7 +59,8 @@ def compute_Egrads():
     global hidden_weights, hidden_outputs,hidden_biases,hidden_sW,hidden_sB, output_weights,output_outputs,output_biases,output_sW,output_sB,inputs,outputs,hidden_weights_Egrad,hidden_biases_Egrad, output_weights_Egrad, output_biases_Egrad 
 
     diff = outputs - output_outputs    #the main difference term
-    p = outupt_outputs[::,0]*output_outputs[::,1]
+    p = output_outputs[::,0]*output_outputs[::,1]
+    p = np.array([p,p]).reshape(len(diff),2)
     diff = diff*p
     dB = np.dot(np.ones((1,np.shape(diff)[0])),diff).reshape((output_weights.shape[1],))
     dW = np.dot(hidden_outputs.T,diff) 
@@ -180,7 +185,7 @@ def initialise():
             output_weights += initialise_eps*output_weights_grad
             output_biases += initialise_eps*output_biases_grad
 
-        if params['descent'] == "error":
+        elif params['descent'] == "error":
             compute_Egrads()
             hidden_weights += initialise_eps*hidden_weights_Egrad
             hidden_biases += initialise_eps*hidden_biases_Egrad
@@ -197,19 +202,40 @@ def initialise():
         print 'current K:',k
         print 'current H:',H
         print 'proposed U:',U_new
-        print 'proposed L:',l_new
+        if log_on:
+            print 'proposed L:',l_new
         print 'proposed K:',k_new
         print 'proposed H:',H_new
         print 'diff-h:',H_new-H
         print 'diff-k:',k_new-k
         print 'diff-u:',U_new-U
-        print 'diff-l:',l_new-l
+        if log_on:
+            print 'diff-l:',l_new-l
         print 'ratio-u:',(U_new-U)/U
-        print 'ratio-l:',(l_new-l)/l
+        if log_on:
+            print 'ratio-l:',(l_new-l)/l
         print 'ratio-h:',(H_new-H)/H
         print 'ratio-k:',(k_new-k)/k
+        if track_theta:
+            print_theta()
 
-        
+
+def print_theta():
+    global hidden_weights, hidden_biases, output_weights, output_biases
+    for i,j in enumerate(hidden_weights):
+        for k,l in enumerate(j):
+            print "w_%d,%d=%f"%(i,k,l)
+    for i,j in enumerate(hidden_biases):
+        print "b_%d=%f"%(i,j)
+
+    for i,j in enumerate(output_weights):
+        for k,l in enumerate(j):
+            print "W_%d,%d=%f"%(i,k,l)
+    for i,j in enumerate(output_biases):
+        print "B_%d=%f"%(i,j)
+
+
+
 def read_input(fname):
     f = open(fname)
     params = {}
@@ -237,7 +263,7 @@ def hmc():
         compute_outputs()
         compute_grads()
         l,k,U,H = Hamiltonian()
-        if prior_on:
+        if gibbs_on:
             gibbs_update()
         leap_frog()
         compute_outputs()
@@ -248,18 +274,23 @@ def hmc():
         print 'current K:',k
         print 'current H:',H
         print 'proposed U:',U_new
-        print 'proposed L:',l_new
+        if log_on:
+            print 'proposed L:',l_new
         print 'proposed K:',k_new
         print 'proposed H:',H_new
         print 'diff-h:',H_new-H
         print 'diff-k:',k_new-k
         print 'diff-u:',U_new-U
-        print 'diff-l:',l_new-l
+        if log_on:
+            print 'diff-l:',l_new-l
         print 'ratio-u:',(U_new-U)/U
-        print 'ratio-l:',(l_new-l)/l
+        if log_on:
+            print 'ratio-l:',(l_new-l)/l
         print 'ratio-h:',(H_new-H)/H
         print 'ratio-k:',(k_new-k)/k
-
+        if track_theta:
+            print_theta()
+    
 
 
 if __name__ == "__main__":
@@ -310,7 +341,8 @@ if __name__ == "__main__":
     hidden_sB = invgamma.rvs(1.0,scale=1.0, size = (1,1)).astype(precision) #the biases have just one common prior
     hpw_mean = (np.tile(hpw_scale/(hpw_shape-1),reps=hidden_weights.shape[0]).reshape(1,hidden_weights.shape[0])).astype(precision) #maintain means of all the variances of prior of each input weight 
     #end of hidden layer prior
-    
+    gibbs_on = True if params['gibbs_on']=='true' else False
+
     opw_shape = 0.1
     opw_scale = 0.1
     output_sW = np.array([100.],dtype=precision) #outputs have exactly one prior for all weights/biases
@@ -347,9 +379,11 @@ if __name__ == "__main__":
     
     log_on = True if not  params['log_on'] else ( False if params['log_on']=="false" else True )
     prior_on = True if not  params['prior_on'] else ( False if params['prior_on']=="false" else True )
-    
+    track_theta = True if params['track_theta']=='true' else False
+
     gibbs_update()
-    
+    if track_theta:
+        print_theta()
     if not params['initialise']=='false':
         initialise()
     if not params['hmc']=='false':
