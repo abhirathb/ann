@@ -26,7 +26,7 @@ def compute_outputs():
 
 def compute_grads():
 
-    global hidden_weights, hidden_outputs,hidden_biases,hidden_sW,hidden_sB, output_weights,output_outputs,output_biases,output_sW,output_sB,inputs,outputs,hidden_weights_grad,hidden_biases_grad, output_weights_grad, output_biases_grad,log_on, prior_on
+    global hidden_weights, hidden_outputs,hidden_biases,hidden_sW,hidden_sB, output_weights,output_outputs,output_biases,output_sW,output_sB,inputs,outputs,hidden_weights_grad,hidden_biases_grad, output_weights_grad, output_biases_grad,log_on, prior_on, for_init
 
     diff = outputs - output_outputs    #the main difference term
     dw = np.zeros((num_inputs,num_hidden),precision)
@@ -41,7 +41,7 @@ def compute_grads():
         back = bp*prod
         db = np.dot(np.ones((1,np.shape(back)[0])),back).reshape((hidden_weights.shape[1],))
         dw = np.dot(inputs.T,back)
-    if prior_on:
+    if prior_on and for_init==False:
         dB -= output_biases/output_sB[0]
         dW -= output_weights/output_sW[0]
         db -= hidden_biases/hidden_sB[0]
@@ -172,13 +172,14 @@ def error():
 
 
 def initialise():
-    global hidden_weights, initialise_steps, hidden_biases, output_weights, output_biases, initialis_eps, hidden_weights_grad, hidden_biases_grad, output_weights_grad, output_biases_grad
+    global hidden_weights, initialise_steps, hidden_biases, output_weights, output_biases, initialis_eps, hidden_weights_grad, hidden_biases_grad, output_weights_grad, output_biases_grad,for_init
     print 'Beginning Initialisation Stes:'
+    for_init = True
     for i in range(initialise_steps):
         compute_outputs()
 
         l,k,U,H = Hamiltonian()
-        if params['descent'] == "hamiltonian":
+        if params['descent'] == "log":
             compute_grads()
             hidden_weights += initialise_eps*hidden_weights_grad
             hidden_biases += initialise_eps*hidden_biases_grad
@@ -236,6 +237,11 @@ def print_theta():
 
 
 
+<<<<<<< HEAD
+=======
+    for_init = False
+        
+>>>>>>> 16d4c8e63bfaf467a80017a41e9a317fe1db44cd
 def read_input(fname):
     f = open(fname)
     params = {}
@@ -361,7 +367,7 @@ if __name__ == "__main__":
     hidden_outputs = np.zeros((num_hidden),precision)
     output_outputs = np.zeros((2),precision)
     #....
-    
+    for_init = False
     #Sampling Variables:
     init_sd_output = 1.0    #not provided in input parameters because it doesn't appear to be something that is changed so far
     init_sd_hidden = 1.0

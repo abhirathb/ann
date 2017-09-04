@@ -19,8 +19,14 @@ precision:double
 ard_prior_scale:2.0
 ard_prior_shape:5.0
 ard_init:100.0
+<<<<<<< HEAD
 log_on:false
 prior_on:true
-descent:hamiltonian
+descent:log
 gibbs_on:false
 track_theta:true
+=======
+log_on:true
+prior_on:false
+descent:log
+>>>>>>> 16d4c8e63bfaf467a80017a41e9a317fe1db44cd
