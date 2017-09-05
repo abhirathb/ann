@@ -172,7 +172,8 @@ def error():
 
 
 def initialise():
-    global hidden_weights, initialise_steps, hidden_biases, output_weights, output_biases, initialis_eps, hidden_weights_grad, hidden_biases_grad, output_weights_grad, output_biases_grad,for_init
+    global hidden_weights, initialise_steps, hidden_biases, output_weights, output_biases, initialis_eps, hidden_weights_grad, hidden_biases_grad, output_weights_grad, output_biases_grad,for_init, track_prior
+
     print 'Beginning Initialisation Stes:'
     for_init = True
     for i in range(initialise_steps):
@@ -237,6 +238,21 @@ def print_theta():
     for i,j in enumerate(output_biases):
         print "B_%d=%f"%(i,j)
 
+def print_momenta():
+    global pw, pb, pW, pB
+    for i,j in enumerate(pw):
+        for k,l in enumerate(j):
+            print "pw_%d,%d=%f"%(i,k,l)
+    for i,j in enumerate(pb):
+        print "pb_%d=%f"%(i,j)
+
+    for i,j in enumerate(pW):
+        for k,l in enumerate(j):
+            print "pW_%d,%d=%f"%(i,k,l)
+    for i,j in enumerate(pB):
+        print "pB_%d=%f"%(i,j)
+
+
 
 def read_input(fname):
     f = open(fname)
@@ -295,11 +311,13 @@ def hmc():
     
 def print_variances():
     global hidden_sW, hidden_sB, output_sW, output_sB
-    for i,j in enumerate(hidden_sW):
-        print "sw_%d=%f"%(i,j)
-    print "sb=",(hidden_sB)
-    print "oW=",(output_sB)
-    print "oB=",(output_sW)
+    print hidden_sW
+    print hidden_sW.shape
+    for i,j in enumerate(hidden_sW[0]):
+        print "sw_%d="%(i),j
+    print "sb=",(hidden_sB[0])
+    print "ow=",(output_sB[0])
+    print "ob=",(output_sW[0])
 
 
 if __name__ == "__main__":
@@ -321,7 +339,9 @@ if __name__ == "__main__":
         var = float(params['hidden_weights'])
         hidden_weights = np.random.normal(0,var,(num_inputs,num_hidden)).astype(precision)
     else:
+        print "I loaded a file"
         hidden_weights = np.loadtxt(params['hidden_weights'],dtype=precision)
+        print hidden_weights
 
     if isfloat(params['hidden_biases']): 
         var = float(params['hidden_biases'])
@@ -342,20 +362,35 @@ if __name__ == "__main__":
         output_biases = np.loadtxt(params['output_biases'],dtype=precision)
     
         
-    init = float(params['ard_init'])
     # hidden layer prior settings; shape, scale, sW, sB, mean
+    
     hpw_shape = float(params['ard_prior_shape']) #hidden layer prior weights shape
     hpw_scale =  float(params['ard_prior_scale']) #hidden layer prior weights scale
-    hidden_sW = (np.tile(init,reps=hidden_weights.shape[0]).reshape(1,hidden_weights.shape[0])).astype(precision) # each input unit has one sigma. so you repeat the same initial sigma D times to get a vector
-    hidden_sB = invgamma.rvs(1.0,scale=1.0, size = (1,1)).astype(precision) #the biases have just one common prior
+    if isfloat(params['hidden_sw']): 
+        init = float(params['hidden_sw'])
+        hidden_sW = (np.tile(init,reps=hidden_weights.shape[0]).reshape(1,hidden_weights.shape[0])).astype(precision) # each input unit has one sigma. so you repeat the same initial sigma D times to get a vector
+    else:
+        hidden_sW = np.loadtxt(params['hidden_sw']).reshape(1,hidden_weights.shape[0]).astype(precision)
     hpw_mean = (np.tile(hpw_scale/(hpw_shape-1),reps=hidden_weights.shape[0]).reshape(1,hidden_weights.shape[0])).astype(precision) #maintain means of all the variances of prior of each input weight 
+    if params['hidden_sb']=="auto":
+        hidden_sB = invgamma.rvs(1.0,scale=1.0, size = (1,1)).astype(precision) #the biases have just one common prior
+    else:
+        hidden_sB = np.loadtxt(params['hidden_sb']).reshape((1,1)).astype(precision)
+    
+    if params['output_sw']=="auto":
+        output_sW = np.array([100.],dtype=precision) #outputs have exactly one prior for all weights/biases
+    else:
+        output_sW = np.loadtxt(params['output_sw']).reshape((1,1)).astype(precision)
+    
+    if params['output_sb']=="auto":
+        output_sB = np.array([100.],dtype=precision) #outputs have exactly one prior for all weights/biases
+    else:
+        output_sB = np.loadtxt(params['output_sb']).reshape((1,1)).astype(precision)
     #end of hidden layer prior
     gibbs_on = True if params['gibbs_on']=='true' else False
 
     opw_shape = 0.1
     opw_scale = 0.1
-    output_sW = np.array([100.],dtype=precision) #outputs have exactly one prior for all weights/biases
-    output_sB = invgamma.rvs(1.0,scale=1.0,size=(1,1)).astype(precision)#end output layer prior contribution
 
     hidden_weights_grad = np.zeros((num_inputs,num_hidden),precision)
     hidden_biases_grad = np.zeros((num_hidden),precision)
@@ -374,10 +409,23 @@ if __name__ == "__main__":
     #Sampling Variables:
     init_sd_output = 1.0    #not provided in input parameters because it doesn't appear to be something that is changed so far
     init_sd_hidden = 1.0
-    pW = np.random.normal(0,init_sd_output,output_weights.shape).astype(precision)
-    pB = np.random.normal(0,init_sd_output,output_biases.shape).astype(precision)
-    pw = np.random.normal(0,init_sd_hidden,hidden_weights.shape).astype(precision)
-    pb = np.random.normal(0,init_sd_hidden,hidden_biases.shape).astype(precision)
+    if params['pw']=="auto":
+        pw = np.random.normal(0,init_sd_hidden,hidden_weights.shape).astype(precision)
+    else:
+        pw = np.loadtxt(params['pw'])
+    
+    if params['pb']=="auto":
+        pb = np.random.normal(0,init_sd_hidden,hidden_biases.shape).astype(precision)
+    else:
+        pb = np.loadtxt(params['pb'])
+    if params['pW']=="auto":
+        pW = np.random.normal(0,init_sd_output,output_weights.shape).astype(precision)
+    else:
+        pW = np.loadtxt(params['pW'])
+    if params['pB']=="auto":
+        pB = np.random.normal(0,init_sd_output,output_biases.shape).astype(precision)
+    else:
+        pB = np.loadtxt(params['pB'])
     #....
 
 
@@ -390,8 +438,11 @@ if __name__ == "__main__":
     prior_on = True if not  params['prior_on'] else ( False if params['prior_on']=="false" else True )
     track_theta = True if params['track_theta']=='true' else False
     track_prior = True if params['track_prior']=='true' else False
-
-    gibbs_update()
+    
+    if params['static_prior']=="false":
+        gibbs_update()
+    print_variances()
+    print_momenta()
     if track_theta:
         print_theta()
     if not params['initialise']=='false':
