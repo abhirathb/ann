@@ -78,16 +78,46 @@ def compute_Egrads():
 
 
 def prior_contrib():
-    global hidden_weights, hidden_biases, hidden_sW, hidden_sB, output_weights, output_biases, output_sW, output_sB
+    global hidden_weights, hidden_biases, hidden_sw, hidden_sb, output_weights, output_biases, output_sw, output_sb
     val = 0 
     for i,j in zip(hidden_weights,hidden_sW[0]):
+        ws = (i**2).sum()
         val -= (i**2).sum()/(2*j)
-    for i in output_weights:
-        val -= (i**2).sum()/(output_sW[0])
+    val -= (output_weights**2).sum()/(2*output_sW[0])
     val -= (hidden_biases**2).sum()/(2*hidden_sB[0])
     val -= (output_biases**2).sum()/(2*output_sB[0])
     return val
 
+
+def analytical_diff_prior():
+    global eps,hidden_weights, hidden_biases, hidden_sw, hidden_sb, output_weights, output_biases, output_sw, output_sb,pw,pW,pb,pB
+    err = 0
+    for i in range(len(hidden_weights)):
+        s = hidden_sW[0][i]
+        for j in range(len(hidden_weights[i])):
+            x = hidden_weights[i][j]
+            p = pw[i][j]
+            err += (eps**3) * ((eps**3)*(x**2) - 4*(eps**2)*(p)*(s)*x + 4*eps*(p**2)*(s**2) -4*eps*s*(x**2) + 8*p*x*(s**2))/(32*(s**4))
+    for i in range(len(hidden_biases)):
+        s = hidden_sB[0]
+        x = hidden_biases[i]
+        p = pb[i] 
+        err += (eps**3) * ((eps**3)*(x**2) - 4*(eps**2)*(p)*(s)*x + 4*eps*(p**2)*(s**2) -4*eps*s*(x**2) + 8*p*x*(s**2))/(32*(s**4))
+    s = output_sW[0]
+    for i in range(len(output_weights)):
+        for j in range(len(output_weights[i])):
+            x = output_weights[i][j]
+            p = pW[i][j]
+            err += (eps**3) * ((eps**3)*(x**2) - 4*(eps**2)*(p)*(s)*x + 4*eps*(p**2)*(s**2) -4*eps*s*(x**2) + 8*p*x*(s**2))/(32*(s**4))
+
+    for i in range(len(output_biases)):
+        s = output_sB[0]
+        x = output_biases[i]
+        p = pB[i] 
+        err += (eps**3) * ((eps**3)*(x**2) - 4*(eps**2)*(p)*(s)*x + 4*eps*(p**2)*(s**2) -4*eps*s*(x**2) + 8*p*x*(s**2))/(32*(s**4))
+
+    return err
+    
 
 def Hamiltonian():
     global outputs, output_outputs,pw,pb,pB,pW,hidden_weights,hidden_biases,hidden_sW,hidden_sB,output_weights,output_biases,output_sW,output_sB, prior_on, log_on
@@ -97,6 +127,7 @@ def Hamiltonian():
     else:
         log = 0
     k = (pw**2).sum() + (pb**2).sum() + (pW**2).sum() + (pB**2).sum()
+    k = k/2
     if prior_on:
         p = prior_contrib()
     else:
@@ -213,7 +244,8 @@ def initialise():
         print 'diff-u:',U_new-U
         if log_on:
             print 'diff-l:',l_new-l
-        print 'ratio-u:',(U_new-U)/U
+        if U!=0:
+            print 'ratio-u:',(U_new-U)/U
         if log_on:
             print 'ratio-l:',(l_new-l)/l
         print 'ratio-h:',(H_new-H)/H
@@ -281,6 +313,7 @@ def hmc():
         compute_outputs()
         compute_grads()
         l,k,U,H = Hamiltonian()
+        print " analytical expectation of difference:",analytical_diff_prior()
         if gibbs_on:
             gibbs_update()
         leap_frog()
@@ -308,7 +341,7 @@ def hmc():
         print 'ratio-k:',(k_new-k)/k
         if track_theta:
             print_theta()
-    
+            print_momenta() 
 def print_variances():
     global hidden_sW, hidden_sB, output_sW, output_sB
     print hidden_sW
@@ -316,8 +349,8 @@ def print_variances():
     for i,j in enumerate(hidden_sW[0]):
         print "sw_%d="%(i),j
     print "sb=",(hidden_sB[0])
-    print "ow=",(output_sB[0])
-    print "ob=",(output_sW[0])
+    print "ow=",(output_sW[0])
+    print "ob=",(output_sB[0])
 
 
 if __name__ == "__main__":
@@ -328,20 +361,23 @@ if __name__ == "__main__":
     precision = np.float32 if params['precision']=="single" else np.float128
     #:    global hidden_weights, hidden_biases, output_weights, output_biases
     #input vector and output vector files are specified
-    inputs = np.loadtxt(params['input_vector'],dtype=precision)
     outputs = np.loadtxt(params['output_vector'],dtype=precision)
-    num_inputs = len(inputs[0]) #number of inputs is directly inferred from the file
     num_hidden = int(params['num_hidden_units']) #number of hidden units for the NN is specified in input
     
+    num_inputs = int(params['num_snp']) #number of input units
+    inputs = np.loadtxt(params['input_vector'],dtype=precision)
+    num_subjects = int(len(inputs))
+    inputs = inputs.reshape(num_subjects,num_inputs)
+
     # the "hidden_weights" parameter allows for you to go two ways: specify a float to specify a variance from which to draw the hidden_weights (centered on 0). The other is to specify a file from which you can directly load values of hidden_weights. Same will be applied for hidden_biases, output_weights, output_biases 
 
     if isfloat(params['hidden_weights']): 
         var = float(params['hidden_weights'])
         hidden_weights = np.random.normal(0,var,(num_inputs,num_hidden)).astype(precision)
     else:
-        print "I loaded a file"
-        hidden_weights = np.loadtxt(params['hidden_weights'],dtype=precision)
-        print hidden_weights
+   #     print "I loaded a file"
+        hidden_weights = np.loadtxt(params['hidden_weights'],dtype=precision).reshape(num_inputs,num_hidden)
+    #    print hidden_weights
 
     if isfloat(params['hidden_biases']): 
         var = float(params['hidden_biases'])
@@ -373,22 +409,22 @@ if __name__ == "__main__":
         hidden_sW = np.loadtxt(params['hidden_sw']).reshape(1,hidden_weights.shape[0]).astype(precision)
     hpw_mean = (np.tile(hpw_scale/(hpw_shape-1),reps=hidden_weights.shape[0]).reshape(1,hidden_weights.shape[0])).astype(precision) #maintain means of all the variances of prior of each input weight 
     if params['hidden_sb']=="auto":
-        hidden_sB = invgamma.rvs(1.0,scale=1.0, size = (1,1)).astype(precision) #the biases have just one common prior
+        hidden_sB = invgamma.rvs(1.0,scale=1.0, size = (1,)).astype(precision) #the biases have just one common prior
     else:
-        hidden_sB = np.loadtxt(params['hidden_sb']).reshape((1,1)).astype(precision)
+        hidden_sB = np.loadtxt(params['hidden_sb']).reshape((1,)).astype(precision)
     
     if params['output_sw']=="auto":
-        output_sW = np.array([100.],dtype=precision) #outputs have exactly one prior for all weights/biases
+        output_sW = np.array([100.],dtype=precision).reshape((1,))#outputs have exactly one prior for all weights/biases
     else:
-        output_sW = np.loadtxt(params['output_sw']).reshape((1,1)).astype(precision)
+        output_sW = np.loadtxt(params['output_sw']).reshape((1,)).astype(precision)
     
     if params['output_sb']=="auto":
-        output_sB = np.array([100.],dtype=precision) #outputs have exactly one prior for all weights/biases
+        output_sB = np.array([100.],dtype=precision).reshape((1,)) #outputs have exactly one prior for all weights/biases
     else:
-        output_sB = np.loadtxt(params['output_sb']).reshape((1,1)).astype(precision)
+        output_sB = np.loadtxt(params['output_sb']).reshape((1,)).astype(precision)
     #end of hidden layer prior
     gibbs_on = True if params['gibbs_on']=='true' else False
-
+    print "GIBBS:",gibbs_on
     opw_shape = 0.1
     opw_scale = 0.1
 
@@ -410,6 +446,7 @@ if __name__ == "__main__":
     init_sd_output = 1.0    #not provided in input parameters because it doesn't appear to be something that is changed so far
     init_sd_hidden = 1.0
     if params['pw']=="auto":
+        print hidden_weights.shape
         pw = np.random.normal(0,init_sd_hidden,hidden_weights.shape).astype(precision)
     else:
         pw = np.loadtxt(params['pw'])
