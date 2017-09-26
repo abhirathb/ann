@@ -126,6 +126,7 @@ def Hamiltonian():
         log = log.sum()
     else:
         log = 0
+    print_momenta()
     k = (pw**2).sum() + (pb**2).sum() + (pW**2).sum() + (pB**2).sum()
     k = k/2
     if prior_on:
@@ -203,7 +204,7 @@ def error():
 
 
 def initialise():
-    global hidden_weights, initialise_steps, hidden_biases, output_weights, output_biases, initialis_eps, hidden_weights_grad, hidden_biases_grad, output_weights_grad, output_biases_grad,for_init, track_prior
+    global hidden_weights, initialise_steps, hidden_biases, output_weights, output_biases, initialis_eps, hidden_weights_grad, hidden_biases_grad, output_weights_grad, output_biases_grad,for_init, track_prior, evolve_w, evolve_b,evolve_W,evolve_B
 
     print 'Beginning Initialisation Stes:'
     for_init = True
@@ -213,17 +214,26 @@ def initialise():
         l,k,U,H = Hamiltonian()
         if params['descent'] == "log":
             compute_grads()
-            hidden_weights += initialise_eps*hidden_weights_grad
-            hidden_biases += initialise_eps*hidden_biases_grad
-            output_weights += initialise_eps*output_weights_grad
-            output_biases += initialise_eps*output_biases_grad
+            if evolve_w:
+                hidden_weights += initialise_eps*hidden_weights_grad
+            if evolve_b:
+                hidden_biases += initialise_eps*hidden_biases_grad
+            if evolve_W:
+                output_weights += initialise_eps*output_weights_grad
+            if evolve_B:
+               output_biases += initialise_eps*output_biases_grad
 
         elif params['descent'] == "error":
             compute_Egrads()
-            hidden_weights += initialise_eps*hidden_weights_Egrad
-            hidden_biases += initialise_eps*hidden_biases_Egrad
-            output_weights += initialise_eps*output_weights_Egrad
-            output_biases += initialise_eps*output_biases_Egrad
+
+            if evolve_w:
+                hidden_weights += initialise_eps*hidden_weights_Egrad
+            if evolve_b:
+                hidden_biases += initialise_eps*hidden_biases_Egrad
+            if evolve_W:
+                output_weights += initialise_eps*output_weights_Egrad
+            if evolve_B:
+                output_biases += initialise_eps*output_biases_Egrad
 
         compute_outputs()
         l_new,k_new, U_new, H_new = Hamiltonian()
@@ -239,7 +249,7 @@ def initialise():
             print 'proposed L:',l_new
         print 'proposed K:',k_new
         print 'proposed H:',H_new
-        print 'diff-h:',H_new-H
+        print 'diff-h:',U_new - k_new -U + k
         print 'diff-k:',k_new-k
         print 'diff-u:',U_new-U
         if log_on:
@@ -254,7 +264,8 @@ def initialise():
             print_theta()
         if track_prior:
             print_variances()
-
+        for i,j in enumerate(outputs):
+            print "f-%d:"%i,j[0]
 
 def print_theta():
     global hidden_weights, hidden_biases, output_weights, output_biases
@@ -329,16 +340,16 @@ def hmc():
             print 'proposed L:',l_new
         print 'proposed K:',k_new
         print 'proposed H:',H_new
-        print 'diff-h:',H_new-H
-        print 'diff-k:',k_new-k
-        print 'diff-u:',U_new-U
+        print 'diff-h:%e'%(H_new-H)
+        print 'diff-k:%e'%(k_new-k)
+        print 'diff-u:%e'%(U_new-U)
         if log_on:
-            print 'diff-l:',l_new-l
-        print 'ratio-u:',(U_new-U)/U
+            print 'diff-l:%e'%(l_new-l)
+        print 'ratio-u:%e'%((U_new-U)/U)
         if log_on:
-            print 'ratio-l:',(l_new-l)/l
-        print 'ratio-h:',(H_new-H)/H
-        print 'ratio-k:',(k_new-k)/k
+            print 'ratio-l:%e'%((l_new-l)/l)
+        print 'ratio-h:%e'%((H_new-H)/H)
+        print 'ratio-k:%e'%((k_new-k)/k)
         if track_theta:
             print_theta()
             print_momenta() 
@@ -367,6 +378,8 @@ if __name__ == "__main__":
     num_inputs = int(params['num_snp']) #number of input units
     inputs = np.loadtxt(params['input_vector'],dtype=precision)
     num_subjects = int(len(inputs))
+    print num_subjects,num_inputs
+    print params['input_vector']
     inputs = inputs.reshape(num_subjects,num_inputs)
 
     # the "hidden_weights" parameter allows for you to go two ways: specify a float to specify a variance from which to draw the hidden_weights (centered on 0). The other is to specify a file from which you can directly load values of hidden_weights. Same will be applied for hidden_biases, output_weights, output_biases 
@@ -475,6 +488,10 @@ if __name__ == "__main__":
     prior_on = True if not  params['prior_on'] else ( False if params['prior_on']=="false" else True )
     track_theta = True if params['track_theta']=='true' else False
     track_prior = True if params['track_prior']=='true' else False
+    evolve_w = True if params['evolve_w']=='true' else False
+    evolve_b = True if params['evolve_b']=='true' else False
+    evolve_W = True if params['evolve_W']=='true' else False
+    evolve_B = True if params['evolve_B']=='true' else False
     
     if params['static_prior']=="false":
         gibbs_update()
