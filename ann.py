@@ -126,7 +126,6 @@ def Hamiltonian():
         log = log.sum()
     else:
         log = 0
-    print_momenta()
     k = (pw**2).sum() + (pb**2).sum() + (pW**2).sum() + (pB**2).sum()
     k = k/2
     if prior_on:
@@ -173,7 +172,8 @@ def gibbs_update():
     
     
 def leap_frog():
-    global hidden_weights, hidden_biases,hidden_sW,hidden_sB, pw,pb, hidden_weights_grad, hidden_biases_grad, output_weights,output_biases,output_sW,output_sB,pW,pB,output_weights_grad,output_biases_grad,eps,inputs,outputs,eps
+    global hidden_weights, hidden_biases,hidden_sW,hidden_sB, pw,pb, hidden_weights_grad, hidden_biases_grad, output_weights,output_biases,output_sW,output_sB,pW,pB,output_weights_grad,output_biases_grad,eps,inputs,outputs,eps,for_init
+    for_init=False
     pw += (eps/2.0)*hidden_weights_grad
     pb += (eps/2.0)*hidden_biases_grad
     pW += (eps/2.0)*output_weights_grad
@@ -198,21 +198,26 @@ def error():
     rmsd = 0
     for i in range(len(outputs)):
         rmsd += (outputs[i][0] - output_outputs[i][0])**2
-    return rmsd/len(outputs)
-
+    return 1.0- (rmsd/len(outputs))
+def maj_err()
+    global outputs, output_outputs
+    err = 0
+    for i in range(len(outputs)):
+        err += abs(outputs[i][0] - output_outputs[i][0])
+    return 1.0 - (err/len(outputs))
 
 
 
 def initialise():
     global hidden_weights, initialise_steps, hidden_biases, output_weights, output_biases, initialis_eps, hidden_weights_grad, hidden_biases_grad, output_weights_grad, output_biases_grad,for_init, track_prior, evolve_w, evolve_b,evolve_W,evolve_B
 
-    print 'Beginning Initialisation Stes:'
-    for_init = True
+    print 'Beginning Initialisation Steps:'
+    for_init = True if params['descent']!="kernel" else False
     for i in range(initialise_steps):
         compute_outputs()
 
         l,k,U,H = Hamiltonian()
-        if params['descent'] == "log":
+        if params['descent'] == "log" or params['descent']=="kernel":
             compute_grads()
             if evolve_w:
                 hidden_weights += initialise_eps*hidden_weights_grad
@@ -222,6 +227,7 @@ def initialise():
                 output_weights += initialise_eps*output_weights_grad
             if evolve_B:
                output_biases += initialise_eps*output_biases_grad
+
 
         elif params['descent'] == "error":
             compute_Egrads()
@@ -240,6 +246,7 @@ def initialise():
 
         print 'Iteration:',i
         print 'RMSD Accuracy:',error()
+        print 'Majority Accuracy:',maj_error()
         print 'current U:',U
         print 'current L:',l
         print 'current K:',k
