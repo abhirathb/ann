@@ -199,7 +199,7 @@ def error():
     for i in range(len(outputs)):
         rmsd += (outputs[i][0] - output_outputs[i][0])**2
     return 1.0- (rmsd/len(outputs))
-def maj_err()
+def maj_error():
     global outputs, output_outputs
     err = 0
     for i in range(len(outputs)):
