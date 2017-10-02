@@ -62,6 +62,7 @@ def compute_Egrads():
     p = output_outputs[::,0]*output_outputs[::,1]
     p = np.array([p,p]).reshape(len(diff),2)
     diff = diff*p
+    diff = diff/len(diff)  # so that derivative is of normalised error
     dB = np.dot(np.ones((1,np.shape(diff)[0])),diff).reshape((output_weights.shape[1],))
     dW = np.dot(hidden_outputs.T,diff) 
     bp = np.dot(diff,output_weights.T)
@@ -203,7 +204,7 @@ def maj_error():
     global outputs, output_outputs
     err = 0
     for i in range(len(outputs)):
-        err += abs(outputs[i][0] - output_outputs[i][0])
+        err += np.round(abs(outputs[i][0] - output_outputs[i][0]))
     return 1.0 - (err/len(outputs))
 
 
@@ -219,26 +220,26 @@ def initialise():
         l,k,U,H = Hamiltonian()
         if params['descent'] == "log" or params['descent']=="kernel":
             compute_grads()
-            if evolve_w:
+            if evolve_w==True:
                 hidden_weights += initialise_eps*hidden_weights_grad
-            if evolve_b:
+            if evolve_b==True:
                 hidden_biases += initialise_eps*hidden_biases_grad
-            if evolve_W:
+            if evolve_W==True:
                 output_weights += initialise_eps*output_weights_grad
-            if evolve_B:
+            if evolve_B==True:
                output_biases += initialise_eps*output_biases_grad
 
 
         elif params['descent'] == "error":
             compute_Egrads()
 
-            if evolve_w:
+            if evolve_w==True:
                 hidden_weights += initialise_eps*hidden_weights_Egrad
-            if evolve_b:
+            if evolve_b==True:
                 hidden_biases += initialise_eps*hidden_biases_Egrad
-            if evolve_W:
+            if evolve_W==True:
                 output_weights += initialise_eps*output_weights_Egrad
-            if evolve_B:
+            if evolve_B==True:
                 output_biases += initialise_eps*output_biases_Egrad
 
         compute_outputs()
