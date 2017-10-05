@@ -199,7 +199,7 @@ def error():
     rmsd = 0
     for i in range(len(outputs)):
         rmsd += (outputs[i][0] - output_outputs[i][0])**2
-    return 1.0- (rmsd/len(outputs))
+    return 1.0- (rmsd/len(outputs))**0.5
 def maj_error():
     global outputs, output_outputs
     err = 0
@@ -207,7 +207,32 @@ def maj_error():
         err += np.round(abs(outputs[i][0] - output_outputs[i][0]))
     return 1.0 - (err/len(outputs))
 
-
+def save_params():
+    global hidden_weights,hidden_biases, output_weights, output_biases, pW,pB,pw,pb
+    bkp = {}
+    w = hidden_weights.copy()
+    bkp['w']=w
+    b = hidden_biases.copy()
+    bkp['b']=b
+    W = output_weights.copy()
+    bkp['W']=W
+    B = output_biases.copy()
+    bkp['B']=B
+    bkp['pw'] = pw
+    bkp['pb'] = pb
+    bkp['pW'] = pW
+    bkp['pB'] = pB
+    return bkp
+def revert_params(bkp):
+    global hidden_weights,hidden_biases, output_weights, output_biases, pW,pB,pw,pb
+    hidden_weights = bkp['w']
+    hidden_biases = bkp['b']
+    output_weights = bkp['W']
+    output_biases = bkp['B']
+    pw = bkp['pw']
+    pb = bkp['pb']
+    pW = bkp['pW']
+    pB = bkp['pB']
 
 def initialise():
     global hidden_weights, initialise_steps, hidden_biases, output_weights, output_biases, initialis_eps, hidden_weights_grad, hidden_biases_grad, output_weights_grad, output_biases_grad,for_init, track_prior, evolve_w, evolve_b,evolve_W,evolve_B
@@ -272,7 +297,7 @@ def initialise():
             print_theta()
         if track_prior:
             print_variances()
-        for i,j in enumerate(outputs):
+        for i,j in enumerate(output_outputs):
             print "f-%d:"%i,j[0]
 
 def print_theta():
@@ -326,19 +351,27 @@ def isfloat(val):
 
 def hmc():
     global prior_on
+    accept = 0.0
     for i in range(hmc_steps):
         print "Step:",(i+1)
-
+        bkp = copy_params()
         compute_outputs()
         compute_grads()
         l,k,U,H = Hamiltonian()
-        print " analytical expectation of difference:",analytical_diff_prior()
         if gibbs_on:
             gibbs_update()
         leap_frog()
         compute_outputs()
         l_new,k_new, U_new, H_new = Hamiltonian()
-        
+        diff = H_new - H
+        alpha = np.min([0,diff])
+        u = np.log(np.random.random(1)[0])
+        if u<alpha:
+            msg="Accept"
+            accept+=1.0
+            revert_params(bkp)
+        else:
+            msg="Reject!"
         print 'current U:',U
         print 'current L:',l
         print 'current K:',k
@@ -358,6 +391,9 @@ def hmc():
             print 'ratio-l:%e'%((l_new-l)/l)
         print 'ratio-h:%e'%((H_new-H)/H)
         print 'ratio-k:%e'%((k_new-k)/k)
+        print 'RMSD Accuracy:',error()
+        print 'Majority Accuracy:',maj_error()
+        print 'Acceptance Rate:',(accept/(i+1))
         if track_theta:
             print_theta()
             print_momenta() 
@@ -386,7 +422,7 @@ if __name__ == "__main__":
     num_inputs = int(params['num_snp']) #number of input units
     inputs = np.loadtxt(params['input_vector'],dtype=precision)
     num_subjects = int(len(inputs))
-    print num_subjects,num_inputs
+    print num_subjects,num_inputs,inputs.shape
     print params['input_vector']
     inputs = inputs.reshape(num_subjects,num_inputs)
 
@@ -488,7 +524,9 @@ if __name__ == "__main__":
 
 
     eps = float(params['hmc_eps'])
+    print "HMC_eps:",eps
     initialise_eps = float(params['initialise_eps'])
+    print "Initialize_eps:",initialise_eps
     initialise_steps = int(params['initialise_steps'])
     hmc_steps = int(params['hmc_steps'])
     
@@ -503,12 +541,13 @@ if __name__ == "__main__":
     
     if params['static_prior']=="false":
         gibbs_update()
-    print_variances()
-    print_momenta()
+    #print_variances()
+    #print_momenta()
     if track_theta:
         print_theta()
     if not params['initialise']=='false':
         initialise()
     if not params['hmc']=='false':
         hmc()
-
+    for i,j in enumerate(hpw_mean):
+        print i,j
